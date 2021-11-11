@@ -1,18 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from typing import Optional
 import argparse
 import codecs
-import distutils.spawn
 import os.path
 import platform
-import re
 import sys
-import subprocess
 import shutil
 import webbrowser as wb
 
 from functools import partial
-from collections import defaultdict
 
 try:
     from PyQt5.QtGui import *
@@ -50,6 +47,8 @@ from libs.create_ml_io import CreateMLReader
 from libs.create_ml_io import JSON_EXT
 from libs.ustr import ustr
 from libs.hashableQListWidgetItem import HashableQListWidgetItem
+
+from arpamutils import roi as arpam_roi
 
 __appname__ = 'labelImg'
 
@@ -91,9 +90,8 @@ class MainWindow(QMainWindow, WindowMixin):
         self.string_bundle = StringBundle.get_bundle()
         get_str = lambda str_id: self.string_bundle.get_string(str_id)
 
-        # Save as Pascal voc xml
         self.default_save_dir = default_save_dir
-        self.label_file_format = settings.get(SETTING_LABEL_FILE_FORMAT, LabelFileFormat.PASCAL_VOC)
+        self.label_file_format = LabelFileFormat.ARPAM
 
         # For loading all image under a directory
         self.m_img_list = []
@@ -133,16 +131,12 @@ class MainWindow(QMainWindow, WindowMixin):
         use_default_label_container = QWidget()
         use_default_label_container.setLayout(use_default_label_qhbox_layout)
 
-        # Create a widget for edit and diffc button
-        self.diffc_button = QCheckBox(get_str('useDifficult'))
-        self.diffc_button.setChecked(False)
-        self.diffc_button.stateChanged.connect(self.button_state)
+        # Create a widget for edit 
         self.edit_button = QToolButton()
         self.edit_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
 
         # Add some of widgets to list_layout
         list_layout.addWidget(self.edit_button)
-        list_layout.addWidget(self.diffc_button)
         list_layout.addWidget(use_default_label_container)
 
         # Create and add combobox for showing unique labels in group
@@ -247,6 +241,8 @@ class MainWindow(QMainWindow, WindowMixin):
                 return '&YOLO', 'format_yolo'
             elif format == LabelFileFormat.CREATE_ML:
                 return '&CreateML', 'format_createml'
+            elif format == LabelFileFormat.ARPAM:
+                return '&ARPAM', 'format_arpam'
 
         save_format = action(get_format_meta(self.label_file_format)[0],
                              self.change_format, 'Ctrl+',
@@ -442,8 +438,6 @@ class MainWindow(QMainWindow, WindowMixin):
         self.fill_color = None
         self.zoom_level = 100
         self.fit_window = False
-        # Add Chris
-        self.difficult = False
 
         # Fix the compatible issue for qt4 and qt5. Convert the QStringList to python list
         if settings.get(SETTING_RECENT_FILES):
@@ -475,8 +469,6 @@ class MainWindow(QMainWindow, WindowMixin):
         Shape.line_color = self.line_color = QColor(settings.get(SETTING_LINE_COLOR, DEFAULT_LINE_COLOR))
         Shape.fill_color = self.fill_color = QColor(settings.get(SETTING_FILL_COLOR, DEFAULT_FILL_COLOR))
         self.canvas.set_drawing_color(self.line_color)
-        # Add chris
-        Shape.difficult = self.difficult
 
         def xbool(x):
             if isinstance(x, QVariant):
@@ -538,12 +530,21 @@ class MainWindow(QMainWindow, WindowMixin):
             self.label_file_format = LabelFileFormat.CREATE_ML
             LabelFile.suffix = JSON_EXT
 
+        elif save_format == FORMAT_ARPAM:
+            # TODO: update this
+            self.actions.save_format.setText(FORMAT_ARPAM)
+            self.actions.save_format.setIcon(new_icon("format_arpam"))
+            self.label_file_format = LabelFileFormat.ARPAM
+            LabelFile.suffix = JSON_EXT
+
     def change_format(self):
         if self.label_file_format == LabelFileFormat.PASCAL_VOC:
             self.set_format(FORMAT_YOLO)
         elif self.label_file_format == LabelFileFormat.YOLO:
             self.set_format(FORMAT_CREATEML)
         elif self.label_file_format == LabelFileFormat.CREATE_ML:
+            self.set_format(FORMAT_ARPAM)
+        elif self.label_file_format == LabelFileFormat.ARPAM:
             self.set_format(FORMAT_PASCALVOC)
         else:
             raise ValueError('Unknown label file format.')
@@ -737,33 +738,6 @@ class MainWindow(QMainWindow, WindowMixin):
         if filename:
             self.load_file(filename)
 
-    # Add chris
-    def button_state(self, item=None):
-        """ Function to handle difficult examples
-        Update on each object """
-        if not self.canvas.editing():
-            return
-
-        item = self.current_item()
-        if not item:  # If not selected Item, take the first one
-            item = self.label_list.item(self.label_list.count() - 1)
-
-        difficult = self.diffc_button.isChecked()
-
-        try:
-            shape = self.items_to_shapes[item]
-        except:
-            pass
-        # Checked and Update
-        try:
-            if difficult != shape.difficult:
-                shape.difficult = difficult
-                self.set_dirty()
-            else:  # User probably changed item visibility
-                self.canvas.set_shape_visible(shape, item.checkState() == Qt.Checked)
-        except:
-            pass
-
     # React to canvas signals.
     def shape_selection_changed(self, selected=False):
         if self._no_selection_slot:
@@ -805,17 +779,15 @@ class MainWindow(QMainWindow, WindowMixin):
 
     def load_labels(self, shapes):
         s = []
-        for label, points, line_color, fill_color, difficult in shapes:
+        for label, points, line_color, fill_color in shapes:
             shape = Shape(label=label)
             for x, y in points:
-
                 # Ensure the labels are within the bounds of the image. If not, fix them.
                 x, y, snapped = self.canvas.snap_point_to_canvas(x, y)
                 if snapped:
                     self.set_dirty()
 
                 shape.add_point(QPointF(x, y))
-            shape.difficult = difficult
             shape.close()
             s.append(shape)
 
@@ -855,30 +827,13 @@ class MainWindow(QMainWindow, WindowMixin):
                         line_color=s.line_color.getRgb(),
                         fill_color=s.fill_color.getRgb(),
                         points=[(p.x(), p.y()) for p in s.points],
-                        # add chris
-                        difficult=s.difficult)
+                        )
 
         shapes = [format_shape(shape) for shape in self.canvas.shapes]
         # Can add different annotation formats here
         try:
-            if self.label_file_format == LabelFileFormat.PASCAL_VOC:
-                if annotation_file_path[-4:].lower() != ".xml":
-                    annotation_file_path += XML_EXT
-                self.label_file.save_pascal_voc_format(annotation_file_path, shapes, self.file_path, self.image_data,
-                                                       self.line_color.getRgb(), self.fill_color.getRgb())
-            elif self.label_file_format == LabelFileFormat.YOLO:
-                if annotation_file_path[-4:].lower() != ".txt":
-                    annotation_file_path += TXT_EXT
-                self.label_file.save_yolo_format(annotation_file_path, shapes, self.file_path, self.image_data, self.label_hist,
-                                                 self.line_color.getRgb(), self.fill_color.getRgb())
-            elif self.label_file_format == LabelFileFormat.CREATE_ML:
-                if annotation_file_path[-5:].lower() != ".json":
-                    annotation_file_path += JSON_EXT
-                self.label_file.save_create_ml_format(annotation_file_path, shapes, self.file_path, self.image_data,
-                                                      self.label_hist, self.line_color.getRgb(), self.fill_color.getRgb())
-            else:
-                self.label_file.save(annotation_file_path, shapes, self.file_path, self.image_data,
-                                     self.line_color.getRgb(), self.fill_color.getRgb())
+            assert self.label_file_format == LabelFileFormat.ARPAM
+            self.label_file.save_arpam_format(shapes, self.file_path, self.image_data)
             print('Image:{0} -> Annotation:{1}'.format(self.file_path, annotation_file_path))
             return True
         except LabelFileError as e:
@@ -906,8 +861,6 @@ class MainWindow(QMainWindow, WindowMixin):
             self._no_selection_slot = True
             self.canvas.select_shape(self.items_to_shapes[item])
             shape = self.items_to_shapes[item]
-            # Add Chris
-            self.diffc_button.setChecked(shape.difficult)
 
     def label_item_changed(self, item):
         shape = self.items_to_shapes[item]
@@ -939,8 +892,6 @@ class MainWindow(QMainWindow, WindowMixin):
         else:
             text = self.default_label_text_line.text()
 
-        # Add Chris
-        self.diffc_button.setChecked(False)
         if text is not None:
             self.prev_label_text = text
             generate_color = generate_color_by_text(text)
@@ -1051,7 +1002,7 @@ class MainWindow(QMainWindow, WindowMixin):
         # Make sure that filePath is a regular python string, rather than QString
         file_path = ustr(file_path)
 
-        # Fix bug: An  index error after select a directory when open a new file.
+        # Fix bug: An index error after select a directory when open a new file.
         unicode_file_path = ustr(file_path)
         unicode_file_path = os.path.abspath(unicode_file_path)
         # Tzutalin 20160906 : Add file list and dock to move faster
@@ -1085,6 +1036,8 @@ class MainWindow(QMainWindow, WindowMixin):
                 # read data first and store for saving into label file.
                 self.image_data = read(unicode_file_path, None)
                 self.label_file = None
+                if self.label_file_format == LabelFileFormat.ARPAM:
+                    self.label_file = LabelFile(filename=unicode_file_path, arpam=True)
                 self.canvas.verified = False
 
             if isinstance(self.image_data, QImage):
@@ -1100,8 +1053,8 @@ class MainWindow(QMainWindow, WindowMixin):
             self.image = image
             self.file_path = unicode_file_path
             self.canvas.load_pixmap(QPixmap.fromImage(image))
-            if self.label_file:
-                self.load_labels(self.label_file.shapes)
+            # if self.label_file:
+                # self.load_labels(self.label_file.shapes)
             self.set_clean()
             self.canvas.setEnabled(True)
             self.adjust_scale(initial=True)
@@ -1129,29 +1082,9 @@ class MainWindow(QMainWindow, WindowMixin):
         return '[{} / {}]'.format(self.cur_img_idx + 1, self.img_count)
 
     def show_bounding_box_from_annotation_file(self, file_path):
-        if self.default_save_dir is not None:
-            basename = os.path.basename(os.path.splitext(file_path)[0])
-            xml_path = os.path.join(self.default_save_dir, basename + XML_EXT)
-            txt_path = os.path.join(self.default_save_dir, basename + TXT_EXT)
-            json_path = os.path.join(self.default_save_dir, basename + JSON_EXT)
-
-            """Annotation file priority:
-            PascalXML > YOLO
-            """
-            if os.path.isfile(xml_path):
-                self.load_pascal_xml_by_filename(xml_path)
-            elif os.path.isfile(txt_path):
-                self.load_yolo_txt_by_filename(txt_path)
-            elif os.path.isfile(json_path):
-                self.load_create_ml_json_by_filename(json_path, file_path)
-
-        else:
-            xml_path = os.path.splitext(file_path)[0] + XML_EXT
-            txt_path = os.path.splitext(file_path)[0] + TXT_EXT
-            if os.path.isfile(xml_path):
-                self.load_pascal_xml_by_filename(xml_path)
-            elif os.path.isfile(txt_path):
-                self.load_yolo_txt_by_filename(txt_path)
+        if self.label_file_format == LabelFileFormat.ARPAM:
+            self.load_arpam_by_img_path(file_path)
+            return
 
     def resizeEvent(self, event):
         if self.canvas and not self.image.isNull()\
@@ -1226,15 +1159,17 @@ class MainWindow(QMainWindow, WindowMixin):
             self.load_file(filename)
 
     def scan_all_images(self, folder_path):
-        extensions = ['.%s' % fmt.data().decode("ascii").lower() for fmt in QImageReader.supportedImageFormats()]
+        extensions = tuple('.%s' % fmt.data().decode("ascii").lower() for fmt in QImageReader.supportedImageFormats())
         images = []
 
-        for root, dirs, files in os.walk(folder_path):
-            for file in files:
-                if file.lower().endswith(tuple(extensions)):
-                    relative_path = os.path.join(root, file)
-                    path = ustr(os.path.abspath(relative_path))
-                    images.append(path)
+        # Only grab images in the data root
+        root, dirs, files = next(os.walk(folder_path))
+        # for root, dirs, files in os.walk(folder_path):
+        for file in files:
+            if file.lower().endswith(extensions):
+                relative_path = os.path.join(root, file)
+                path = ustr(os.path.abspath(relative_path))
+                images.append(path)
         natural_sort(images, key=lambda x: x.lower())
         return images
 
@@ -1572,6 +1507,26 @@ class MainWindow(QMainWindow, WindowMixin):
         shapes = create_ml_parse_reader.get_shapes()
         self.load_labels(shapes)
         self.canvas.verified = create_ml_parse_reader.verified
+    
+    def load_arpam_by_img_path(self, img_path):
+        # TODO
+        self.arpam_roi_file = arpam_roi.ROI_File.from_img_path(img_path)
+        shapes = []
+
+        for bbox in self.arpam_roi_file.bboxes:
+            x_max = round(bbox.xmax * self.arpam_roi_file.size.w)
+            x_min = round(bbox.xmin * self.arpam_roi_file.size.w)
+            y_max = round(bbox.ymax * self.arpam_roi_file.size.h)
+            y_min = round(bbox.ymin * self.arpam_roi_file.size.h)
+
+            points = [(x_min, y_min), (x_max, y_min), (x_max, y_max), (x_min, y_max)]
+            
+            shape = (bbox.name, points, None, None)
+            shapes.append(shape)
+
+        self.load_labels(shapes)
+        self.canvas.verified = True
+
 
     def copy_previous_bounding_boxes(self):
         current_index = self.m_img_list.index(self.file_path)

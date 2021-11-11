@@ -7,6 +7,7 @@ except ImportError:
     from PyQt4.QtGui import QImage
 
 from base64 import b64encode, b64decode
+from typing import Optional
 from libs.pascal_voc_io import PascalVocWriter
 from libs.yolo_io import YOLOWriter
 from libs.pascal_voc_io import XML_EXT
@@ -16,11 +17,13 @@ from enum import Enum
 import os.path
 import sys
 
+from arpamutils import roi as arpam_roi
 
 class LabelFileFormat(Enum):
     PASCAL_VOC = 1
     YOLO = 2
     CREATE_ML = 3
+    ARPAM = 4
 
 
 class LabelFileError(Exception):
@@ -32,11 +35,24 @@ class LabelFile(object):
     # suffix = '.lif'
     suffix = XML_EXT
 
-    def __init__(self, filename=None):
-        self.shapes = ()
+    def __init__(self, filename=None, arpam=False):
+        self.shapes = []
         self.image_path = None
         self.image_data = None
         self.verified = False
+        self.arpam_roi_file: Optional[arpam_roi.ROI_File] = None
+        if arpam:
+            self.arpam_roi_file = arpam_roi.ROI_File.from_img_path(filename)
+            for bbox in self.arpam_roi_file.bboxes:
+                x_max = round(bbox.xmax * self.arpam_roi_file.size.w)
+                x_min = round(bbox.xmin * self.arpam_roi_file.size.w)
+                y_max = round(bbox.ymax * self.arpam_roi_file.size.w)
+                y_min = round(bbox.ymin * self.arpam_roi_file.size.w)
+
+                points = [(x_min, y_min), (x_max, y_min), (x_max, y_max), (x_min, y_max)]
+                
+                shape = (bbox.name, points, None, None)
+                self.shapes.append(shape)
 
     def save_create_ml_format(self, filename, shapes, image_path, image_data, class_list, line_color=None, fill_color=None, database_src=None):
         img_folder_name = os.path.basename(os.path.dirname(image_path))
@@ -74,10 +90,8 @@ class LabelFile(object):
         for shape in shapes:
             points = shape['points']
             label = shape['label']
-            # Add Chris
-            difficult = int(shape['difficult'])
             bnd_box = LabelFile.convert_points_to_bnd_box(points)
-            writer.add_bnd_box(bnd_box[0], bnd_box[1], bnd_box[2], bnd_box[3], label, difficult)
+            writer.add_bnd_box(bnd_box[0], bnd_box[1], bnd_box[2], bnd_box[3], label)
 
         writer.save(target_file=filename)
         return
@@ -104,13 +118,30 @@ class LabelFile(object):
         for shape in shapes:
             points = shape['points']
             label = shape['label']
-            # Add Chris
-            difficult = int(shape['difficult'])
             bnd_box = LabelFile.convert_points_to_bnd_box(points)
-            writer.add_bnd_box(bnd_box[0], bnd_box[1], bnd_box[2], bnd_box[3], label, difficult)
+            writer.add_bnd_box(bnd_box[0], bnd_box[1], bnd_box[2], bnd_box[3], label)
 
         writer.save(target_file=filename, class_list=class_list)
         return
+
+    def save_arpam_format(self, shapes, image_path, image_data):
+        # TODO
+        if isinstance(image_data, QImage):
+            image = image_data
+        else:
+            image = QImage()
+            image.load(image_path)
+        
+        image_shape = (image.height(), image.width())
+        self.arpam_roi_file.bboxes = []
+        for shape in shapes:
+            points = shape["points"]
+            x = [p[0] for p in points]
+            y = [p[1] for p in points]
+            self.arpam_roi_file.add_bbox(shape["label"], min(x), max(x), min(y), max(y))
+        
+        self.arpam_roi_file.save()
+
 
     def toggle_verify(self):
         self.verified = not self.verified
