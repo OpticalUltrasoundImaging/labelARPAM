@@ -1,4 +1,5 @@
 import sys
+
 try:
     from PyQt5.QtWidgets import QWidget, QHBoxLayout, QComboBox
 except ImportError:
@@ -8,7 +9,8 @@ except ImportError:
     # http://stackoverflow.com/questions/21217399/pyqt4-qtcore-qvariant-object-instead-of-a-string
     if sys.version_info.major >= 3:
         import sip
-        sip.setapi('QVariant', 2)
+
+        sip.setapi("QVariant", 2)
     from PyQt4.QtGui import QWidget, QHBoxLayout, QComboBox
 
 

@@ -14,16 +14,20 @@ import os.path
 
 from arpamutils import roi as arpam_roi
 
+
 class LabelFileFormat(Enum):
     PASCAL_VOC = 1
     YOLO = 2
     CREATE_ML = 3
     ARPAM = 4
 
+
 class CoImageType(Enum):
+    NOT_SET = 0
     PA = 1
     US = 2
     SUM = 3
+
 
 class LabelFileError(Exception):
     pass
@@ -48,27 +52,54 @@ class LabelFile(object):
                 y_max = round(bbox.ymax * self.arpam_roi_file.size.w)
                 y_min = round(bbox.ymin * self.arpam_roi_file.size.w)
 
-                points = [(x_min, y_min), (x_max, y_min), (x_max, y_max), (x_min, y_max)]
-                
+                points = [
+                    (x_min, y_min),
+                    (x_max, y_min),
+                    (x_max, y_max),
+                    (x_min, y_max),
+                ]
+
                 shape = (bbox.name, points, None, None)
                 self.shapes.append(shape)
 
-    def save_create_ml_format(self, filename, shapes, image_path, image_data, class_list, line_color=None, fill_color=None, database_src=None):
+    def save_create_ml_format(
+        self,
+        filename,
+        shapes,
+        image_path,
+        image_data,
+        class_list,
+        line_color=None,
+        fill_color=None,
+        database_src=None,
+    ):
         img_folder_name = os.path.basename(os.path.dirname(image_path))
         img_file_name = os.path.basename(image_path)
 
         image = QImage()
         image.load(image_path)
-        image_shape = [image.height(), image.width(),
-                       1 if image.isGrayscale() else 3]
-        writer = CreateMLWriter(img_folder_name, img_file_name,
-                                image_shape, shapes, filename, local_img_path=image_path)
+        image_shape = [image.height(), image.width(), 1 if image.isGrayscale() else 3]
+        writer = CreateMLWriter(
+            img_folder_name,
+            img_file_name,
+            image_shape,
+            shapes,
+            filename,
+            local_img_path=image_path,
+        )
         writer.verified = self.verified
         writer.write()
 
-
-    def save_pascal_voc_format(self, filename, shapes, image_path, image_data,
-                               line_color=None, fill_color=None, database_src=None):
+    def save_pascal_voc_format(
+        self,
+        filename,
+        shapes,
+        image_path,
+        image_data,
+        line_color=None,
+        fill_color=None,
+        database_src=None,
+    ):
         img_folder_path = os.path.dirname(image_path)
         img_folder_name = os.path.split(img_folder_path)[-1]
         img_file_name = os.path.basename(image_path)
@@ -80,23 +111,32 @@ class LabelFile(object):
         else:
             image = QImage()
             image.load(image_path)
-        image_shape = [image.height(), image.width(),
-                       1 if image.isGrayscale() else 3]
-        writer = PascalVocWriter(img_folder_name, img_file_name,
-                                 image_shape, local_img_path=image_path)
+        image_shape = [image.height(), image.width(), 1 if image.isGrayscale() else 3]
+        writer = PascalVocWriter(
+            img_folder_name, img_file_name, image_shape, local_img_path=image_path
+        )
         writer.verified = self.verified
 
         for shape in shapes:
-            points = shape['points']
-            label = shape['label']
+            points = shape["points"]
+            label = shape["label"]
             bnd_box = LabelFile.convert_points_to_bnd_box(points)
             writer.add_bnd_box(bnd_box[0], bnd_box[1], bnd_box[2], bnd_box[3], label)
 
         writer.save(target_file=filename)
         return
 
-    def save_yolo_format(self, filename, shapes, image_path, image_data, class_list,
-                         line_color=None, fill_color=None, database_src=None):
+    def save_yolo_format(
+        self,
+        filename,
+        shapes,
+        image_path,
+        image_data,
+        class_list,
+        line_color=None,
+        fill_color=None,
+        database_src=None,
+    ):
         img_folder_path = os.path.dirname(image_path)
         img_folder_name = os.path.split(img_folder_path)[-1]
         img_file_name = os.path.basename(image_path)
@@ -108,15 +148,15 @@ class LabelFile(object):
         else:
             image = QImage()
             image.load(image_path)
-        image_shape = [image.height(), image.width(),
-                       1 if image.isGrayscale() else 3]
-        writer = YOLOWriter(img_folder_name, img_file_name,
-                            image_shape, local_img_path=image_path)
+        image_shape = [image.height(), image.width(), 1 if image.isGrayscale() else 3]
+        writer = YOLOWriter(
+            img_folder_name, img_file_name, image_shape, local_img_path=image_path
+        )
         writer.verified = self.verified
 
         for shape in shapes:
-            points = shape['points']
-            label = shape['label']
+            points = shape["points"]
+            label = shape["label"]
             bnd_box = LabelFile.convert_points_to_bnd_box(points)
             writer.add_bnd_box(bnd_box[0], bnd_box[1], bnd_box[2], bnd_box[3], label)
 
@@ -130,7 +170,7 @@ class LabelFile(object):
         else:
             image = QImage()
             image.load(image_path)
-        
+
         image_shape = (image.height(), image.width())
         self.arpam_roi_file.bboxes = []
         for shape in shapes:
@@ -138,14 +178,13 @@ class LabelFile(object):
             x = [p[0] for p in points]
             y = [p[1] for p in points]
             self.arpam_roi_file.add_bbox(shape["label"], min(x), max(x), min(y), max(y))
-        
-        self.arpam_roi_file.save()
 
+        self.arpam_roi_file.save()
 
     def toggle_verify(self):
         self.verified = not self.verified
 
-    ''' ttf is disable
+    """ ttf is disable
     def load(self, filename):
         import json
         with open(filename, 'rb') as f:
@@ -172,7 +211,7 @@ class LabelFile(object):
                     imagePath=imagePath,
                     imageData=b64encode(imageData)),
                     f, ensure_ascii=True, indent=2)
-    '''
+    """
 
     @staticmethod
     def is_label_file(filename):
@@ -181,10 +220,10 @@ class LabelFile(object):
 
     @staticmethod
     def convert_points_to_bnd_box(points):
-        x_min = float('inf')
-        y_min = float('inf')
-        x_max = float('-inf')
-        y_max = float('-inf')
+        x_min = float("inf")
+        y_min = float("inf")
+        x_max = float("-inf")
+        y_max = float("-inf")
         for p in points:
             x = p[0]
             y = p[1]
