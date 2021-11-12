@@ -11,20 +11,9 @@ import webbrowser as wb
 
 from functools import partial
 
-try:
-    from PyQt5.QtGui import *
-    from PyQt5.QtCore import *
-    from PyQt5.QtWidgets import *
-except ImportError:
-    # needed for py3+qt4
-    # Ref:
-    # http://pyqt.sourceforge.net/Docs/PyQt4/incompatible_apis.html
-    # http://stackoverflow.com/questions/21217399/pyqt4-qtcore-qvariant-object-instead-of-a-string
-    if sys.version_info.major >= 3:
-        import sip
-        sip.setapi('QVariant', 2)
-    from PyQt4.QtGui import *
-    from PyQt4.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import *
 
 from libs.combobox import ComboBox
 from libs.resources import *
@@ -37,7 +26,7 @@ from libs.canvas import Canvas
 from libs.zoomWidget import ZoomWidget
 from libs.labelDialog import LabelDialog
 from libs.colorDialog import ColorDialog
-from libs.labelFile import LabelFile, LabelFileError, LabelFileFormat
+from libs.labelFile import CoImageType, LabelFile, LabelFileError, LabelFileFormat
 from libs.toolBar import ToolBar
 from libs.pascal_voc_io import PascalVocReader
 from libs.pascal_voc_io import XML_EXT
@@ -50,7 +39,7 @@ from libs.hashableQListWidgetItem import HashableQListWidgetItem
 
 from arpamutils import roi as arpam_roi
 
-__appname__ = 'labelImg'
+__appname__ = 'labelARPAM'
 
 
 class WindowMixin(object):
@@ -92,6 +81,9 @@ class MainWindow(QMainWindow, WindowMixin):
 
         self.default_save_dir = default_save_dir
         self.label_file_format = LabelFileFormat.ARPAM
+        self.label_file: Optional[LabelFile] = None
+        
+        self.arpam_img_type: CoImageType = CoImageType.PA
 
         # For loading all image under a directory
         self.m_img_list = []
@@ -105,7 +97,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.dirty = False
 
         self._no_selection_slot = False
-        self._beginner = True
+        self._beginner = False
         self.screencast = "https://youtu.be/p0nR2YsCY_U"
 
         # Load predefined classes to the list
@@ -154,17 +146,27 @@ class MainWindow(QMainWindow, WindowMixin):
         self.label_list.itemChanged.connect(self.label_item_changed)
         list_layout.addWidget(self.label_list)
 
-
-
         self.dock = QDockWidget(get_str('boxLabelText'), self)
         self.dock.setObjectName(get_str('labels'))
         self.dock.setWidget(label_list_container)
 
+        # Create a widget for picking only good images
+        self.only_good_img_checkbox = QCheckBox("See only good images")
+        self.only_good_img_checkbox.setChecked(False)
+        img_quality_qhbox_layout = QHBoxLayout()
+        img_quality_qhbox_layout.addWidget(self.only_good_img_checkbox)
+        img_quality_container = QWidget()
+        img_quality_container.setLayout(img_quality_qhbox_layout)
+
+        # File list widget
         self.file_list_widget = QListWidget()
         self.file_list_widget.itemDoubleClicked.connect(self.file_item_double_clicked)
+
         file_list_layout = QVBoxLayout()
         file_list_layout.setContentsMargins(0, 0, 0, 0)
+        file_list_layout.addWidget(img_quality_container)
         file_list_layout.addWidget(self.file_list_widget)
+
         file_list_container = QWidget()
         file_list_container.setLayout(file_list_layout)
         self.file_dock = QDockWidget(get_str('fileList'), self)
@@ -212,12 +214,17 @@ class MainWindow(QMainWindow, WindowMixin):
         open_dir = action(get_str('openDir'), self.open_dir_dialog,
                           'Ctrl+u', 'open', get_str('openDir'))
 
-        change_save_dir = action(get_str('changeSaveDir'), self.change_save_dir_dialog,
-                                 'Ctrl+r', 'open', get_str('changeSavedAnnotationDir'))
+        # change_save_dir = action(get_str('changeSaveDir'), self.change_save_dir_dialog,
+                                 # 'Ctrl+r', 'open', get_str('changeSavedAnnotationDir'))
 
         open_annotation = action(get_str('openAnnotation'), self.open_annotation_dialog,
                                  'Ctrl+Shift+O', 'open', get_str('openAnnotationDetail'))
+
         copy_prev_bounding = action(get_str('copyPrevBounding'), self.copy_previous_bounding_boxes, 'Ctrl+v', 'copy', get_str('copyPrevBounding'))
+
+        open_US_img = action("US img", partial(self.action_open_coreg_img, CoImageType.US), 'u', 'open US img', "US img")
+        open_PA_img = action("PA img", partial(self.action_open_coreg_img, CoImageType.PA), 'p', 'open PA img', "PA img")
+        open_SUM_img = action("SUM img", partial(self.action_open_coreg_img, CoImageType.SUM), 's', 'open SUM img', "SUM img")
 
         open_next_image = action(get_str('nextImg'), self.open_next_image,
                                  'd', 'next', get_str('nextImgDetail'))
@@ -396,7 +403,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.display_label_option.triggered.connect(self.toggle_paint_labels_option)
 
         add_actions(self.menus.file,
-                    (open, open_dir, change_save_dir, open_annotation, copy_prev_bounding, self.menus.recentFiles, save, save_format, save_as, close, reset_all, delete_image, quit))
+                    (open, open_dir, open_PA_img, open_US_img, open_SUM_img, open_annotation, copy_prev_bounding, self.menus.recentFiles, save, save_format, save_as, close, reset_all, delete_image, quit))
         add_actions(self.menus.help, (help_default, show_info, show_shortcut))
         add_actions(self.menus.view, (
             self.auto_saving,
@@ -417,11 +424,11 @@ class MainWindow(QMainWindow, WindowMixin):
 
         self.tools = self.toolbar('Tools')
         self.actions.beginner = (
-            open, open_dir, change_save_dir, open_next_image, open_prev_image, verify, save, save_format, None, create, copy, delete, None,
+            open, open_dir, open_next_image, open_prev_image, verify, save, save_format, None, create, copy, delete, None,
             zoom_in, zoom, zoom_out, fit_window, fit_width)
 
         self.actions.advanced = (
-            open, open_dir, change_save_dir, open_next_image, open_prev_image, save, save_format, None,
+            open, open_dir, open_PA_img, open_US_img, open_SUM_img, open_next_image, open_prev_image, save, save_format, None,
             create_mode, edit_mode, None,
             hide_all, show_all)
 
@@ -803,6 +810,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
             self.add_label(shape)
         self.update_combo_box()
+        self._s = s
         self.canvas.load_shapes(s)
 
     def update_combo_box(self):
@@ -1074,6 +1082,55 @@ class MainWindow(QMainWindow, WindowMixin):
             self.canvas.setFocus(True)
             return True
         return False
+    
+    def load_coregistered_file(self, fpath: str):
+        # Highlight the file item
+        if fpath and self.file_list_widget.count() > 0:
+            if fpath in self.m_img_list:
+                index = self.m_img_list.index(fpath)
+                file_widget_item = self.file_list_widget.item(index)
+                file_widget_item.setSelected(True)
+            else:
+                self.file_list_widget.clear()
+                self.m_img_list.clear()
+
+        # Load image:
+        # read data first and store for saving into label file.
+        self.image_data = read(fpath, None)
+
+        if isinstance(self.image_data, QImage):
+            image = self.image_data
+        else:
+            image = QImage.fromData(self.image_data)
+
+        if image.isNull():
+            self.error_message(u'Error opening file',
+                               u"<p>Make sure <i>%s</i> is a valid image file." % fpath)
+            self.status("Error reading %s" % fpath)
+            return False
+
+        self.status("Loaded %s" % os.path.basename(fpath))
+        self.image = image
+        self.file_path = fpath
+        self.canvas.load_pixmap(QPixmap.fromImage(image))
+
+        # self.canvas.setEnabled(True)
+        # self.adjust_scale(initial=True)
+        # self.paint_canvas()
+        self.add_recent_file(self.file_path)
+        # self.toggle_actions(True)
+        self.canvas.load_shapes(self._s)
+
+        counter = self.counter_str()
+        self.setWindowTitle(__appname__ + ' ' + fpath + ' ' + counter)
+
+        # # Default : select last item if there is at least one item
+        # if self.label_list.count():
+            # self.label_list.setCurrentItem(self.label_list.item(self.label_list.count() - 1))
+            # self.label_list.item(self.label_list.count() - 1).setSelected(True)
+
+        # self.canvas.setFocus(True)
+        return True
 
     def counter_str(self):
         """
@@ -1084,7 +1141,6 @@ class MainWindow(QMainWindow, WindowMixin):
     def show_bounding_box_from_annotation_file(self, file_path):
         if self.label_file_format == LabelFileFormat.ARPAM:
             self.load_arpam_by_img_path(file_path)
-            return
 
     def resizeEvent(self, event):
         if self.canvas and not self.image.isNull()\
@@ -1281,6 +1337,24 @@ class MainWindow(QMainWindow, WindowMixin):
             filename = self.m_img_list[self.cur_img_idx]
             if filename:
                 self.load_file(filename)
+    
+    def action_open_coreg_img(self, coreg_type: CoImageType, _value=False):
+        if self.arpam_img_type != coreg_type and self.label_file and self.label_file.arpam_roi_file:
+            if coreg_type == CoImageType.PA:
+                img_path = str(self.label_file.arpam_roi_file.img_set.PA)
+            elif coreg_type == CoImageType.US:
+                img_path = str(self.label_file.arpam_roi_file.img_set.US)
+            else:
+                img_path = str(self.label_file.arpam_roi_file.img_set.Sum)
+
+            try:
+                # update index
+                self.cur_img_idx = self.m_img_list.index(img_path)
+            except ValueError:  # file not found
+                return
+            
+            self.arpam_img_type = coreg_type
+            self.load_coregistered_file(img_path)
 
     def open_next_image(self, _value=False):
         # Proceeding prev image without dialog if having any label

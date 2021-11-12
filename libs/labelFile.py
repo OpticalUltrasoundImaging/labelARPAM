@@ -1,12 +1,8 @@
 # Copyright (c) 2016 Tzutalin
 # Create by TzuTaLin <tzu.ta.lin@gmail.com>
 
-try:
-    from PyQt5.QtGui import QImage
-except ImportError:
-    from PyQt4.QtGui import QImage
+from PyQt5.QtGui import QImage
 
-from base64 import b64encode, b64decode
 from typing import Optional
 from libs.pascal_voc_io import PascalVocWriter
 from libs.yolo_io import YOLOWriter
@@ -15,7 +11,6 @@ from libs.create_ml_io import CreateMLWriter
 from libs.create_ml_io import JSON_EXT
 from enum import Enum
 import os.path
-import sys
 
 from arpamutils import roi as arpam_roi
 
@@ -25,6 +20,10 @@ class LabelFileFormat(Enum):
     CREATE_ML = 3
     ARPAM = 4
 
+class CoImageType(Enum):
+    PA = 1
+    US = 2
+    SUM = 3
 
 class LabelFileError(Exception):
     pass
