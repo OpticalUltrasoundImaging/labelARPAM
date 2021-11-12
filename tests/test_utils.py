@@ -1,8 +1,5 @@
-import os
-import sys
 import unittest
 from libs.utils import (
-    Struct,
     new_action,
     new_icon,
     add_actions,

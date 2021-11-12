@@ -1,20 +1,13 @@
 from math import sqrt
-from libs.ustr import ustr
 import hashlib
 import re
 import sys
 
-try:
-    from PyQt5.QtGui import *
-    from PyQt5.QtCore import *
-    from PyQt5.QtWidgets import *
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import *
 
-    QT5 = True
-except ImportError:
-    from PyQt4.QtGui import *
-    from PyQt4.QtCore import *
-
-    QT5 = False
+QT5 = True
 
 
 def new_icon(icon):
@@ -83,13 +76,12 @@ def distance(p):
     return sqrt(p.x() * p.x() + p.y() * p.y())
 
 
-def format_shortcut(text):
+def format_shortcut(text: str):
     mod, key = text.split("+", 1)
     return "<b>%s</b>+<b>%s</b>" % (mod, key)
 
 
-def generate_color_by_text(text):
-    s = ustr(text)
+def generate_color_by_text(s: str):
     hash_code = int(hashlib.sha256(s.encode("utf-8")).hexdigest(), 16)
     r = int((hash_code / 255) % 255)
     g = int((hash_code / 65025) % 255)
@@ -100,10 +92,6 @@ def generate_color_by_text(text):
 def have_qstring():
     """p3/qt5 get rid of QString wrapper as py3 has native unicode str type"""
     return not (sys.version_info.major >= 3 or QT_VERSION_STR.startswith("5."))
-
-
-def util_qt_strlistclass():
-    return QStringList if have_qstring() else list
 
 
 def natural_sort(list, key=lambda s: s):

@@ -1,15 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from typing import Optional
+from functools import partial
 import argparse
 import codecs
 import os.path
 import platform
 import sys
-import shutil
-import webbrowser as wb
-
-from functools import partial
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -29,14 +26,6 @@ from libs.colorDialog import ColorDialog
 from libs.labelFile import CoImageType, LabelFile, LabelFileError, LabelFileFormat
 from libs.toolBar import ToolBar
 from libs.hashableQListWidgetItem import HashableQListWidgetItem
-
-# from libs.pascal_voc_io import PascalVocReader
-# from libs.pascal_voc_io import XML_EXT
-# from libs.yolo_io import YoloReader
-# from libs.yolo_io import TXT_EXT
-# from libs.create_ml_io import CreateMLReader
-# from libs.create_ml_io import JSON_EXT
-# from libs.ustr import ustr
 
 from arpamutils import roi as arpam_roi
 
@@ -252,25 +241,32 @@ class MainWindow(QMainWindow, WindowMixin):
         )
 
         open_US_img = action(
-            "US img",
+            "US image",
             partial(self.action_open_coreg_img, CoImageType.US),
             "u",
             "open US img",
-            "US img",
+            "US image (u)",
         )
         open_PA_img = action(
-            "PA img",
+            "PA image",
             partial(self.action_open_coreg_img, CoImageType.PA),
             "p",
             "open PA img",
-            "PA img",
+            "PA image (p)",
         )
         open_SUM_img = action(
-            "SUM img",
+            "Sum image",
             partial(self.action_open_coreg_img, CoImageType.SUM),
             "s",
             "open SUM img",
-            "SUM img",
+            "Sum image (s)",
+        )
+        open_DEBUG_img = action(
+            "Debug image",
+            partial(self.action_open_coreg_img, CoImageType.DEBUG),
+            "v",
+            "open debug img",
+            "Debug image (v)",
         )
 
         open_next_image = action(
@@ -310,14 +306,9 @@ class MainWindow(QMainWindow, WindowMixin):
             """
             returns a tuple containing (title, icon_name) of the selected format
             """
-            if format == LabelFileFormat.PASCAL_VOC:
-                return "&PascalVOC", "format_voc"
-            elif format == LabelFileFormat.YOLO:
-                return "&YOLO", "format_yolo"
-            elif format == LabelFileFormat.CREATE_ML:
-                return "&CreateML", "format_createml"
-            elif format == LabelFileFormat.ARPAM:
+            if format == LabelFileFormat.ARPAM:
                 return "&ARPAM", "format_arpam"
+            raise ValueError("Format not supported:", format)
 
         save_format = action(
             get_format_meta(self.label_file_format)[0],
@@ -435,24 +426,6 @@ class MainWindow(QMainWindow, WindowMixin):
             "hide",
             get_str("showAllBoxDetail"),
             enabled=False,
-        )
-
-        help_default = action(
-            get_str("tutorialDefault"),
-            self.show_default_tutorial_dialog,
-            None,
-            "help",
-            get_str("tutorialDetail"),
-        )
-        show_info = action(
-            get_str("info"), self.show_info_dialog, None, "help", get_str("info")
-        )
-        show_shortcut = action(
-            get_str("shortcut"),
-            self.show_shortcuts_dialog,
-            None,
-            "help",
-            get_str("shortcut"),
         )
 
         zoom = QWidgetAction(self)
@@ -643,6 +616,7 @@ class MainWindow(QMainWindow, WindowMixin):
                 open_PA_img,
                 open_US_img,
                 open_SUM_img,
+                open_DEBUG_img,
                 open_annotation,
                 copy_prev_bounding,
                 self.menus.recentFiles,
@@ -655,7 +629,6 @@ class MainWindow(QMainWindow, WindowMixin):
                 quit,
             ),
         )
-        add_actions(self.menus.help, (help_default, show_info, show_shortcut))
         add_actions(
             self.menus.view,
             (
@@ -716,6 +689,7 @@ class MainWindow(QMainWindow, WindowMixin):
             open_PA_img,
             open_US_img,
             open_SUM_img,
+            open_DEBUG_img,
             open_next_image,
             open_prev_image,
             save,
@@ -733,7 +707,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
         # Application state.
         self.image = QImage()
-        self.file_path = ustr(default_filename)
+        self.file_path = default_filename
         self.last_open_dir = None
         self.recent_files = []
         self.max_recent = 7
@@ -746,7 +720,7 @@ class MainWindow(QMainWindow, WindowMixin):
         if settings.get(SETTING_RECENT_FILES):
             if have_qstring():
                 recent_file_qstring_list = settings.get(SETTING_RECENT_FILES)
-                self.recent_files = [ustr(i) for i in recent_file_qstring_list]
+                self.recent_files = [i for i in recent_file_qstring_list]
             else:
                 self.recent_files = recent_file_qstring_list = settings.get(
                     SETTING_RECENT_FILES
@@ -762,8 +736,8 @@ class MainWindow(QMainWindow, WindowMixin):
                 break
         self.resize(size)
         self.move(position)
-        save_dir = ustr(settings.get(SETTING_SAVE_DIR, None))
-        self.last_open_dir = ustr(settings.get(SETTING_LAST_OPEN_DIR, None))
+        save_dir = settings.get(SETTING_SAVE_DIR, None)
+        self.last_open_dir = settings.get(SETTING_LAST_OPEN_DIR, None)
         if (
             self.default_save_dir is None
             and save_dir is not None
@@ -828,44 +802,9 @@ class MainWindow(QMainWindow, WindowMixin):
     # Support Functions #
     def set_format(self, save_format):
         ...
-        # if save_format == FORMAT_PASCALVOC:
-        # self.actions.save_format.setText(FORMAT_PASCALVOC)
-        # self.actions.save_format.setIcon(new_icon("format_voc"))
-        # self.label_file_format = LabelFileFormat.PASCAL_VOC
-        # LabelFile.suffix = XML_EXT
-
-        # elif save_format == FORMAT_YOLO:
-        # self.actions.save_format.setText(FORMAT_YOLO)
-        # self.actions.save_format.setIcon(new_icon("format_yolo"))
-        # self.label_file_format = LabelFileFormat.YOLO
-        # LabelFile.suffix = TXT_EXT
-
-        # elif save_format == FORMAT_CREATEML:
-        # self.actions.save_format.setText(FORMAT_CREATEML)
-        # self.actions.save_format.setIcon(new_icon("format_createml"))
-        # self.label_file_format = LabelFileFormat.CREATE_ML
-        # LabelFile.suffix = JSON_EXT
-
-        # elif save_format == FORMAT_ARPAM:
-        # # TODO: update this
-        # self.actions.save_format.setText(FORMAT_ARPAM)
-        # self.actions.save_format.setIcon(new_icon("format_arpam"))
-        # self.label_file_format = LabelFileFormat.ARPAM
-        # LabelFile.suffix = JSON_EXT
 
     def change_format(self):
         ...
-        # if self.label_file_format == LabelFileFormat.PASCAL_VOC:
-        # self.set_format(FORMAT_YOLO)
-        # elif self.label_file_format == LabelFileFormat.YOLO:
-        # self.set_format(FORMAT_CREATEML)
-        # elif self.label_file_format == LabelFileFormat.CREATE_ML:
-        # self.set_format(FORMAT_ARPAM)
-        # elif self.label_file_format == LabelFileFormat.ARPAM:
-        # self.set_format(FORMAT_PASCALVOC)
-        # else:
-        # raise ValueError("Unknown label file format.")
-        # self.set_dirty()
 
     def no_shapes(self):
         return not self.items_to_shapes
@@ -959,31 +898,6 @@ class MainWindow(QMainWindow, WindowMixin):
     def advanced(self):
         return not self.beginner()
 
-    def show_tutorial_dialog(self, browser="default", link=None):
-        if link is None:
-            link = self.screencast
-
-        if browser.lower() == "default":
-            wb.open(link, new=2)
-        elif browser.lower() == "chrome" and self.os_name == "Windows":
-            if shutil.which(browser.lower()):  # 'chrome' not in wb._browsers in windows
-                wb.register("chrome", None, wb.BackgroundBrowser("chrome"))
-            else:
-                chrome_path = (
-                    "D:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe"
-                )
-                if os.path.isfile(chrome_path):
-                    wb.register("chrome", None, wb.BackgroundBrowser(chrome_path))
-            try:
-                wb.get("chrome").open(link, new=2)
-            except:
-                wb.open(link, new=2)
-        elif browser.lower() in wb._browsers:
-            wb.get(browser.lower()).open(link, new=2)
-
-    def show_default_tutorial_dialog(self):
-        self.show_tutorial_dialog(browser="default")
-
     def show_info_dialog(self):
         from libs.__init__ import __version__
 
@@ -991,11 +905,6 @@ class MainWindow(QMainWindow, WindowMixin):
             __appname__, __version__, sys.version_info
         )
         QMessageBox.information(self, u"Information", msg)
-
-    def show_shortcuts_dialog(self):
-        self.show_tutorial_dialog(
-            browser="default", link="https://github.com/tzutalin/labelImg#Hotkeys"
-        )
 
     def create_shape(self):
         assert self.beginner()
@@ -1059,7 +968,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
     # Tzutalin 20160906 : Add file list and dock to move faster
     def file_item_double_clicked(self, item=None):
-        self.cur_img_idx = self.m_img_list.index(ustr(item.text()))
+        self.cur_img_idx = self.m_img_list.index(item.text())
         filename = self.m_img_list[self.cur_img_idx]
         if filename:
             self.load_file(filename)
@@ -1145,14 +1054,13 @@ class MainWindow(QMainWindow, WindowMixin):
 
         self.combo_box.update_items(unique_text_list)
 
-    def save_labels(self, annotation_file_path):
-        annotation_file_path = ustr(annotation_file_path)
+    def save_labels(self, annotation_file_path: str):
         if self.label_file is None:
             self.label_file = LabelFile()
             self.label_file.verified = self.canvas.verified
 
         def format_shape(s):
-            return dict(
+            return Struct(
                 label=s.label,
                 line_color=s.line_color.getRgb(),
                 fill_color=s.fill_color.getRgb(),
@@ -1328,34 +1236,29 @@ class MainWindow(QMainWindow, WindowMixin):
         for item, shape in self.items_to_shapes.items():
             item.setCheckState(Qt.Checked if value else Qt.Unchecked)
 
-    def load_file(self, file_path=None):
+    def load_file(self, file_path: Optional[str] = None):
         """Load the specified file, or the last opened file if None."""
         self.reset_state()
         self.canvas.setEnabled(False)
         if file_path is None:
             file_path = self.settings.get(SETTING_FILENAME)
 
-        # Make sure that filePath is a regular python string, rather than QString
-        file_path = ustr(file_path)
-
-        # Fix bug: An index error after select a directory when open a new file.
-        unicode_file_path = ustr(file_path)
-        unicode_file_path = os.path.abspath(unicode_file_path)
+        file_path = os.path.abspath(file_path)
         # Tzutalin 20160906 : Add file list and dock to move faster
         # Highlight the file item
-        if unicode_file_path and self.file_list_widget.count() > 0:
-            if unicode_file_path in self.m_img_list:
-                index = self.m_img_list.index(unicode_file_path)
+        if file_path and self.file_list_widget.count() > 0:
+            if file_path in self.m_img_list:
+                index = self.m_img_list.index(file_path)
                 file_widget_item = self.file_list_widget.item(index)
                 file_widget_item.setSelected(True)
             else:
                 self.file_list_widget.clear()
                 self.m_img_list.clear()
 
-        if unicode_file_path and os.path.exists(unicode_file_path):
-            if LabelFile.is_label_file(unicode_file_path):
+        if file_path and os.path.exists(file_path):
+            if LabelFile.is_label_file(file_path):
                 try:
-                    self.label_file = LabelFile(unicode_file_path)
+                    self.label_file = LabelFile(file_path)
                 except LabelFileError as e:
                     self.error_message(
                         u"Error opening file",
@@ -1363,9 +1266,9 @@ class MainWindow(QMainWindow, WindowMixin):
                             u"<p><b>%s</b></p>"
                             u"<p>Make sure <i>%s</i> is a valid label file."
                         )
-                        % (e, unicode_file_path),
+                        % (e, file_path),
                     )
-                    self.status("Error reading %s" % unicode_file_path)
+                    self.status("Error reading %s" % file_path)
                     return False
                 self.image_data = self.label_file.image_data
                 self.line_color = QColor(*self.label_file.lineColor)
@@ -1374,10 +1277,10 @@ class MainWindow(QMainWindow, WindowMixin):
             else:
                 # Load image:
                 # read data first and store for saving into label file.
-                self.image_data = read(unicode_file_path, None)
+                self.image_data = read(file_path, None)
                 self.label_file = None
                 if self.label_file_format == LabelFileFormat.ARPAM:
-                    self.label_file = LabelFile(filename=unicode_file_path, arpam=True)
+                    self.label_file = LabelFile(filename=file_path, arpam=True)
                 self.canvas.verified = False
 
             if isinstance(self.image_data, QImage):
@@ -1387,14 +1290,13 @@ class MainWindow(QMainWindow, WindowMixin):
             if image.isNull():
                 self.error_message(
                     u"Error opening file",
-                    u"<p>Make sure <i>%s</i> is a valid image file."
-                    % unicode_file_path,
+                    u"<p>Make sure <i>%s</i> is a valid image file." % file_path,
                 )
-                self.status("Error reading %s" % unicode_file_path)
+                self.status("Error reading %s" % file_path)
                 return False
-            self.status("Loaded %s" % os.path.basename(unicode_file_path))
+            self.status("Loaded %s" % os.path.basename(file_path))
             self.image = image
-            self.file_path = unicode_file_path
+            self.file_path = file_path
             self.canvas.load_pixmap(QPixmap.fromImage(image))
             # if self.label_file:
             # self.load_labels(self.label_file.shapes)
@@ -1538,7 +1440,7 @@ class MainWindow(QMainWindow, WindowMixin):
         settings[SETTING_RECENT_FILES] = self.recent_files
         settings[SETTING_ADVANCE_MODE] = not self._beginner
         if self.default_save_dir and os.path.exists(self.default_save_dir):
-            settings[SETTING_SAVE_DIR] = ustr(self.default_save_dir)
+            settings[SETTING_SAVE_DIR] = self.default_save_dir
         else:
             settings[SETTING_SAVE_DIR] = ""
 
@@ -1571,24 +1473,22 @@ class MainWindow(QMainWindow, WindowMixin):
         for file in files:
             if file.lower().endswith(extensions):
                 relative_path = os.path.join(root, file)
-                path = ustr(os.path.abspath(relative_path))
+                path = os.path.abspath(relative_path)
                 images.append(path)
         natural_sort(images, key=lambda x: x.lower())
         return images
 
     def change_save_dir_dialog(self, _value=False):
         if self.default_save_dir is not None:
-            path = ustr(self.default_save_dir)
+            path = self.default_save_dir
         else:
             path = "."
 
-        dir_path = ustr(
-            QFileDialog.getExistingDirectory(
-                self,
-                "%s - Save annotations to the directory" % __appname__,
-                path,
-                QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks,
-            )
+        dir_path = QFileDialog.getExistingDirectory(
+            self,
+            "%s - Save annotations to the directory" % __appname__,
+            path,
+            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks,
         )
 
         if dir_path is not None and len(dir_path) > 1:
@@ -1606,14 +1506,13 @@ class MainWindow(QMainWindow, WindowMixin):
             self.statusBar().show()
             return
 
-        path = os.path.dirname(ustr(self.file_path)) if self.file_path else "."
+        path = os.path.dirname(self.file_path) if self.file_path else "."
         if self.label_file_format == LabelFileFormat.PASCAL_VOC:
             filters = "Open Annotation XML file (%s)" % " ".join(["*.xml"])
-            filename = ustr(
-                QFileDialog.getOpenFileName(
-                    self, "%s - Choose a xml file" % __appname__, path, filters
-                )
+            filename = QFileDialog.getOpenFileName(
+                self, "%s - Choose a xml file" % __appname__, path, filters
             )
+
             if filename:
                 if isinstance(filename, (tuple, list)):
                     filename = filename[0]
@@ -1631,16 +1530,15 @@ class MainWindow(QMainWindow, WindowMixin):
                 os.path.dirname(self.file_path) if self.file_path else "."
             )
         if silent != True:
-            target_dir_path = ustr(
-                QFileDialog.getExistingDirectory(
-                    self,
-                    "%s - Open Directory" % __appname__,
-                    default_open_dir_path,
-                    QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks,
-                )
+            target_dir_path = QFileDialog.getExistingDirectory(
+                self,
+                "%s - Open Directory" % __appname__,
+                default_open_dir_path,
+                QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks,
             )
+
         else:
-            target_dir_path = ustr(default_open_dir_path)
+            target_dir_path = default_open_dir_path
         self.last_open_dir = target_dir_path
         self.import_dir_images(target_dir_path)
 
@@ -1712,8 +1610,10 @@ class MainWindow(QMainWindow, WindowMixin):
                 img_path = str(self.label_file.arpam_roi_file.img_set.PA)
             elif coreg_type == CoImageType.US:
                 img_path = str(self.label_file.arpam_roi_file.img_set.US)
-            else:
+            elif coreg_type == CoImageType.SUM:
                 img_path = str(self.label_file.arpam_roi_file.img_set.Sum)
+            else:
+                img_path = str(self.label_file.arpam_roi_file.img_set.Debug)
 
             try:
                 # update index
@@ -1755,7 +1655,7 @@ class MainWindow(QMainWindow, WindowMixin):
     def open_file(self, _value=False):
         if not self.may_continue():
             return
-        path = os.path.dirname(ustr(self.file_path)) if self.file_path else "."
+        path = os.path.dirname(self.file_path) if self.file_path else "."
         formats = [
             "*.%s" % fmt.data().decode("ascii").lower()
             for fmt in QImageReader.supportedImageFormats()
@@ -1774,11 +1674,11 @@ class MainWindow(QMainWindow, WindowMixin):
             self.load_file(filename)
 
     def save_file(self, _value=False):
-        if self.default_save_dir is not None and len(ustr(self.default_save_dir)):
+        if self.default_save_dir is not None and len(self.default_save_dir):
             if self.file_path:
                 image_file_name = os.path.basename(self.file_path)
                 saved_file_name = os.path.splitext(image_file_name)[0]
-                saved_path = os.path.join(ustr(self.default_save_dir), saved_file_name)
+                saved_path = os.path.join(self.default_save_dir, saved_file_name)
                 self._save_file(saved_path)
         else:
             image_file_dir = os.path.dirname(self.file_path)
@@ -1806,7 +1706,7 @@ class MainWindow(QMainWindow, WindowMixin):
         dlg.selectFile(filename_without_extension)
         dlg.setOption(QFileDialog.DontUseNativeDialog, False)
         if dlg.exec_():
-            full_file_path = ustr(dlg.selectedFiles()[0])
+            full_file_path = dlg.selectedFiles()[0]
             if remove_ext:
                 return os.path.splitext(full_file_path)[
                     0

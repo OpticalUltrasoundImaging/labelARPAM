@@ -7,18 +7,9 @@ and execute "pyrcc5 ../resources.qrc -o resources.py" in the libs directory
 """
 import re
 import os
-import sys
 import locale
-from libs.ustr import ustr
 
-try:
-    from PyQt5.QtCore import *
-except ImportError:
-    if sys.version_info.major >= 3:
-        import sip
-
-        sip.setapi("QVariant", 2)
-    from PyQt4.QtCore import *
+from PyQt5.QtCore import *
 
 
 class StringBundle:
@@ -75,7 +66,7 @@ class StringBundle:
                 text.setCodec("UTF-8")
 
             while not text.atEnd():
-                line = ustr(text.readLine())
+                line = text.readLine()
                 key_value = line.split(PROP_SEPERATOR)
                 key = key_value[0].strip()
                 value = PROP_SEPERATOR.join(key_value[1:]).strip().strip('"')
