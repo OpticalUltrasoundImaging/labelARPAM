@@ -1060,7 +1060,7 @@ class MainWindow(QMainWindow, WindowMixin):
             self.label_file.verified = self.canvas.verified
 
         def format_shape(s):
-            return Struct(
+            return dict(
                 label=s.label,
                 line_color=s.line_color.getRgb(),
                 fill_color=s.fill_color.getRgb(),
