@@ -7,7 +7,8 @@ from typing import Optional
 from enum import Enum
 import os.path
 
-from arpamutils import roi as arpam_roi
+from arpamutils.roi import ROI_File
+from arpamutils.metadata import ImgMeta
 
 
 class LabelFileFormat(Enum):
@@ -35,9 +36,11 @@ class LabelFile(object):
         self.image_path = None
         self.image_data = None
         self.verified = False
-        self.arpam_roi_file: Optional[arpam_roi.ROI_File] = None
+        self.arpam_roi_file: Optional[ROI_File] = None
+        self.arpam_img_meta: Optional[ImgMeta] = None
         if arpam:
-            self.arpam_roi_file = arpam_roi.ROI_File.from_img_path(filename)
+            ## Load ROI file
+            self.arpam_roi_file = ROI_File.from_img_path(filename)
             for bbox in self.arpam_roi_file.bboxes:
                 x_max = round(bbox.xmax * self.arpam_roi_file.size.w)
                 x_min = round(bbox.xmin * self.arpam_roi_file.size.w)
@@ -53,6 +56,9 @@ class LabelFile(object):
 
                 shape = (bbox.name, points, None, None)
                 self.shapes.append(shape)
+
+            ## Load meta file
+            self.arpam_img_meta = ImgMeta.from_path(self.arpam_roi_file.img_set.meta)
 
     def save_arpam_format(self, shapes, image_path, image_data):
         if isinstance(image_data, QImage):

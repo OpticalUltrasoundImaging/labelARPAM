@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from pathlib import Path
 from typing import Optional
 from functools import partial
 import argparse
@@ -41,7 +42,7 @@ class WindowMixin(object):
 
     def toolbar(self, title, actions=None):
         toolbar = ToolBar(title)
-        toolbar.setObjectName(u"%sToolBar" % title)
+        toolbar.setObjectName("%sToolBar" % title)
         # toolbar.setOrientation(Qt.Vertical)
         toolbar.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         if actions:
@@ -147,18 +148,34 @@ class MainWindow(QMainWindow, WindowMixin):
         # Create a widget for picking only good images
         self.only_good_img_checkbox = QCheckBox("See only good images")
         self.only_good_img_checkbox.setChecked(False)
-        img_quality_qhbox_layout = QHBoxLayout()
-        img_quality_qhbox_layout.addWidget(self.only_good_img_checkbox)
-        img_quality_container = QWidget()
-        img_quality_container.setLayout(img_quality_qhbox_layout)
+        only_good_img_qhbox_layout = QHBoxLayout()
+        only_good_img_qhbox_layout.addWidget(self.only_good_img_checkbox)
+        only_good_img_container = QWidget()
+        only_good_img_container.setLayout(only_good_img_qhbox_layout)
 
-        # File list widget
+        ### Image quality dock
+        self.img_quality_dock = QDockWidget("Image Quality", self)
+
+        img_quality_layout = QVBoxLayout()
+        img_quality_layout.setContentsMargins(0, 0, 0, 0)
+        self.img_meta_label = QLabel()
+        self.img_meta_label.setText("N/A")
+        img_quality_layout.addWidget(self.img_meta_label)
+
+        img_quality_layout.addWidget(self.img_meta_label)
+        img_quality_container = QWidget()
+        img_quality_container.setLayout(img_quality_layout)
+
+        self.img_quality_dock.setObjectName("Image quality")
+        self.img_quality_dock.setWidget(img_quality_container)
+
+        ### File list widget
         self.file_list_widget = QListWidget()
         self.file_list_widget.itemDoubleClicked.connect(self.file_item_double_clicked)
 
         file_list_layout = QVBoxLayout()
         file_list_layout.setContentsMargins(0, 0, 0, 0)
-        file_list_layout.addWidget(img_quality_container)
+        file_list_layout.addWidget(only_good_img_container)
         file_list_layout.addWidget(self.file_list_widget)
 
         file_list_container = QWidget()
@@ -192,6 +209,8 @@ class MainWindow(QMainWindow, WindowMixin):
         self.canvas.drawingPolygon.connect(self.toggle_drawing_sensitive)
 
         self.setCentralWidget(scroll)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.img_quality_dock)
+        self.img_quality_dock.setFeatures(QDockWidget.DockWidgetFloatable)
         self.addDockWidget(Qt.RightDockWidgetArea, self.dock)
         self.addDockWidget(Qt.RightDockWidgetArea, self.file_dock)
         self.file_dock.setFeatures(QDockWidget.DockWidgetFloatable)
@@ -431,7 +450,7 @@ class MainWindow(QMainWindow, WindowMixin):
         zoom = QWidgetAction(self)
         zoom.setDefaultWidget(self.zoom_widget)
         self.zoom_widget.setWhatsThis(
-            u"Zoom in or out of the image. Also accessible with"
+            "Zoom in or out of the image. Also accessible with"
             " %s and %s from the canvas."
             % (format_shortcut("Ctrl+[-+]"), format_shortcut("Ctrl+Wheel"))
         )
@@ -901,10 +920,10 @@ class MainWindow(QMainWindow, WindowMixin):
     def show_info_dialog(self):
         from libs.__init__ import __version__
 
-        msg = u"Name:{0} \nApp Version:{1} \n{2} ".format(
+        msg = "Name:{0} \nApp Version:{1} \n{2} ".format(
             __appname__, __version__, sys.version_info
         )
-        QMessageBox.information(self, u"Information", msg)
+        QMessageBox.information(self, "Information", msg)
 
     def create_shape(self):
         assert self.beginner()
@@ -1079,7 +1098,7 @@ class MainWindow(QMainWindow, WindowMixin):
             )
             return True
         except LabelFileError as e:
-            self.error_message(u"Error saving label data", u"<b>%s</b>" % e)
+            self.error_message("Error saving label data", "<b>%s</b>" % e)
             return False
 
     def copy_selected_shape(self):
@@ -1240,6 +1259,11 @@ class MainWindow(QMainWindow, WindowMixin):
         """Load the specified file, or the last opened file if None."""
         self.reset_state()
         self.canvas.setEnabled(False)
+        fpath = Path(file_path)
+        if fpath.is_dir():
+            self.statusBar().showMessage(f"Error: {file_path} is a directory.")
+            return
+
         if file_path is None:
             file_path = self.settings.get(SETTING_FILENAME)
 
@@ -1261,10 +1285,10 @@ class MainWindow(QMainWindow, WindowMixin):
                     self.label_file = LabelFile(file_path)
                 except LabelFileError as e:
                     self.error_message(
-                        u"Error opening file",
+                        "Error opening file",
                         (
-                            u"<p><b>%s</b></p>"
-                            u"<p>Make sure <i>%s</i> is a valid label file."
+                            "<p><b>%s</b></p>"
+                            "<p>Make sure <i>%s</i> is a valid label file."
                         )
                         % (e, file_path),
                     )
@@ -1280,7 +1304,24 @@ class MainWindow(QMainWindow, WindowMixin):
                 self.image_data = read(file_path, None)
                 self.label_file = None
                 if self.label_file_format == LabelFileFormat.ARPAM:
+                    ### Main read new roi file here
                     self.label_file = LabelFile(filename=file_path, arpam=True)
+
+                    # update img meta display
+                    img_meta = self.label_file.arpam_img_meta
+                    self.img_meta_label.setText(
+                        "".join(
+                            (
+                                f"dB: {img_meta.dB:.3f}\n",
+                                f"mean ratio: {img_meta.mean_ratio:.3f}\n",
+                                f"balloon mean: {img_meta.bal_mean:.3f}\n",
+                                f"balloon std: {img_meta.bal_std:.3f}\n",
+                                f"tissue mean: {img_meta.under_mean:.3f}\n",
+                                f"tissue std: {img_meta.under_std:.3f}\n",
+                            )
+                        )
+                    )
+
                 self.canvas.verified = False
 
             if isinstance(self.image_data, QImage):
@@ -1289,8 +1330,8 @@ class MainWindow(QMainWindow, WindowMixin):
                 image = QImage.fromData(self.image_data)
             if image.isNull():
                 self.error_message(
-                    u"Error opening file",
-                    u"<p>Make sure <i>%s</i> is a valid image file." % file_path,
+                    "Error opening file",
+                    "<p>Make sure <i>%s</i> is a valid image file." % file_path,
                 )
                 self.status("Error reading %s" % file_path)
                 return False
@@ -1344,8 +1385,8 @@ class MainWindow(QMainWindow, WindowMixin):
 
         if image.isNull():
             self.error_message(
-                u"Error opening file",
-                u"<p>Make sure <i>%s</i> is a valid image file." % fpath,
+                "Error opening file",
+                "<p>Make sure <i>%s</i> is a valid image file." % fpath,
             )
             self.status("Error reading %s" % fpath)
             return False
@@ -1761,8 +1802,8 @@ class MainWindow(QMainWindow, WindowMixin):
 
     def discard_changes_dialog(self):
         yes, no, cancel = QMessageBox.Yes, QMessageBox.No, QMessageBox.Cancel
-        msg = u'You have unsaved changes, would you like to save them and proceed?\nClick "No" to undo all changes.'
-        return QMessageBox.warning(self, u"Attention", msg, yes | no | cancel)
+        msg = 'You have unsaved changes, would you like to save them and proceed?\nClick "No" to undo all changes.'
+        return QMessageBox.warning(self, "Attention", msg, yes | no | cancel)
 
     def error_message(self, title, message):
         return QMessageBox.critical(
@@ -1774,7 +1815,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
     def choose_color1(self):
         color = self.color_dialog.getColor(
-            self.line_color, u"Choose line color", default=DEFAULT_LINE_COLOR
+            self.line_color, "Choose line color", default=DEFAULT_LINE_COLOR
         )
         if color:
             self.line_color = color
@@ -1792,7 +1833,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
     def choose_shape_line_color(self):
         color = self.color_dialog.getColor(
-            self.line_color, u"Choose Line Color", default=DEFAULT_LINE_COLOR
+            self.line_color, "Choose Line Color", default=DEFAULT_LINE_COLOR
         )
         if color:
             self.canvas.selected_shape.line_color = color
@@ -1801,7 +1842,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
     def choose_shape_fill_color(self):
         color = self.color_dialog.getColor(
-            self.fill_color, u"Choose Fill Color", default=DEFAULT_FILL_COLOR
+            self.fill_color, "Choose Fill Color", default=DEFAULT_FILL_COLOR
         )
         if color:
             self.canvas.selected_shape.fill_color = color
