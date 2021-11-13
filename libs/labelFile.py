@@ -38,6 +38,7 @@ class LabelFile(object):
         self.verified = False
         self.arpam_roi_file: Optional[ROI_File] = None
         self.arpam_img_meta: Optional[ImgMeta] = None
+
         if arpam:
             ## Load ROI file
             self.arpam_roi_file = ROI_File.from_img_path(filename)
@@ -58,7 +59,11 @@ class LabelFile(object):
                 self.shapes.append(shape)
 
             ## Load meta file
-            self.arpam_img_meta = ImgMeta.from_path(self.arpam_roi_file.img_set.meta)
+            meta_path = self.arpam_roi_file.img_set.meta
+            if meta_path.exists():
+                self.arpam_img_meta = ImgMeta.from_path(
+                    self.arpam_roi_file.img_set.meta
+                )
 
     def save_arpam_format(self, shapes, image_path, image_data):
         if isinstance(image_data, QImage):

@@ -179,6 +179,7 @@ class MainWindow(QMainWindow, WindowMixin):
         ### File list widget
         self.file_list_widget = QListWidget()
         self.file_list_widget.itemDoubleClicked.connect(self.file_item_double_clicked)
+        ## TODO impl filter
 
         file_list_layout = QVBoxLayout()
         file_list_layout.setContentsMargins(0, 0, 0, 0)
@@ -1316,18 +1317,23 @@ class MainWindow(QMainWindow, WindowMixin):
 
                     # update img meta display
                     img_meta = self.label_file.arpam_img_meta
-                    self.img_meta_label.setText(
-                        "".join(
-                            (
-                                f"dB: {img_meta.dB:.3f}\n",
-                                f"mean ratio: {img_meta.mean_ratio:.3f}\n",
-                                f"balloon mean: {img_meta.bal_mean:.3f}\n",
-                                f"balloon std: {img_meta.bal_std:.3f}\n",
-                                f"tissue mean: {img_meta.under_mean:.3f}\n",
-                                f"tissue std: {img_meta.under_std:.3f}\n",
+                    if img_meta:
+                        self.img_meta_label.setText(
+                            "".join(
+                                (
+                                    f"dB: {img_meta.dB:.3f}\n",
+                                    f"mean ratio: {img_meta.mean_ratio:.3f}\n",
+                                    f"balloon mean: {img_meta.bal_mean:.3f}\n",
+                                    f"balloon std: {img_meta.bal_std:.3f}\n",
+                                    f"tissue mean: {img_meta.under_mean:.3f}\n",
+                                    f"tissue std: {img_meta.under_std:.3f}\n",
+                                )
                             )
                         )
-                    )
+                    else:
+                        self.img_meta_label.setText(
+                            f"Error: Metadata file not found:\n{self.label_file.arpam_roi_file.img_set.meta}"
+                        )
 
                 self.canvas.verified = False
 
