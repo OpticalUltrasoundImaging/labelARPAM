@@ -1,10 +1,6 @@
-try:
-    from PyQt5.QtGui import *
-    from PyQt5.QtCore import *
-    from PyQt5.QtWidgets import *
-except ImportError:
-    from PyQt4.QtGui import *
-    from PyQt4.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import *
 
 from libs.utils import new_icon, label_validator, trimmed
 
@@ -12,7 +8,6 @@ BB = QDialogButtonBox
 
 
 class LabelDialog(QDialog):
-
     def __init__(self, text="Enter object label", parent=None, list_item=None):
         super(LabelDialog, self).__init__(parent)
 
@@ -30,8 +25,8 @@ class LabelDialog(QDialog):
         layout = QVBoxLayout()
         layout.addWidget(self.edit)
         self.button_box = bb = BB(BB.Ok | BB.Cancel, Qt.Horizontal, self)
-        bb.button(BB.Ok).setIcon(new_icon('done'))
-        bb.button(BB.Cancel).setIcon(new_icon('undo'))
+        bb.button(BB.Ok).setIcon(new_icon("done"))
+        bb.button(BB.Cancel).setIcon(new_icon("undo"))
         bb.accepted.connect(self.validate)
         bb.rejected.connect(self.reject)
         layout.addWidget(bb)
@@ -53,7 +48,7 @@ class LabelDialog(QDialog):
     def post_process(self):
         self.edit.setText(trimmed(self.edit.text()))
 
-    def pop_up(self, text='', move=True):
+    def pop_up(self, text="", move=True):
         """
         Shows the dialog, setting the current text to `text`, and blocks the caller until the user has made a choice.
         If the user entered a label, that label is returned, otherwise (i.e. if the user cancelled the action)
@@ -65,8 +60,16 @@ class LabelDialog(QDialog):
         if move:
             cursor_pos = QCursor.pos()
             parent_bottom_right = self.parentWidget().geometry()
-            max_x = parent_bottom_right.x() + parent_bottom_right.width() - self.sizeHint().width()
-            max_y = parent_bottom_right.y() + parent_bottom_right.height() - self.sizeHint().height()
+            max_x = (
+                parent_bottom_right.x()
+                + parent_bottom_right.width()
+                - self.sizeHint().width()
+            )
+            max_y = (
+                parent_bottom_right.y()
+                + parent_bottom_right.height()
+                - self.sizeHint().height()
+            )
             max_global = self.parentWidget().mapToGlobal(QPoint(max_x, max_y))
             if cursor_pos.x() > max_global.x():
                 cursor_pos.setX(max_global.x())
