@@ -24,11 +24,13 @@ from libs.canvas import Canvas
 from libs.zoomWidget import ZoomWidget
 from libs.labelDialog import LabelDialog
 from libs.colorDialog import ColorDialog
-from libs.labelFile import CoImageType, LabelFile, LabelFileError, LabelFileFormat
+from libs.labelFile import LabelFile, LabelFileError, LabelFileFormat
 from libs.toolBar import ToolBar
 from libs.hashableQListWidgetItem import HashableQListWidgetItem
 
 from arpamutils import roi as arpam_roi
+from arpamutils import metadata as arpam_meta
+from arpamutils.roi import CoImageType
 
 __appname__ = "labelARPAM"
 
@@ -78,16 +80,16 @@ class MainWindow(QMainWindow, WindowMixin):
         self.label_file_format = LabelFileFormat.ARPAM
         self.label_file: Optional[LabelFile] = None
 
-        self.arpam_img_type: CoImageType = CoImageType.NOT_SET
+        self.arpam_img_type: CoImageType = CoImageType.UNKNOWN
 
         # For loading all image under a directory
-        self.m_img_list: List[str] = []
-        self.m_img_list_filtered: List[str] = []
+        self.m_img_list: List[str] = []  # active list
+        self.m_img_list_all: List[str] = []  # all images
+        self.m_img_list_filtered: List[str] = []  # filtered images
         self.dir_name = None
         self.label_hist = []
         self.last_open_dir = None
-        self.cur_img_idx = 0
-        self.img_count = 1
+        self.cur_img_idx: int = 0
 
         # Whether we need to save or not.
         self.dirty = False
@@ -147,21 +149,38 @@ class MainWindow(QMainWindow, WindowMixin):
         self.dock.setWidget(label_list_container)
 
         # Create a widget for picking only good images
-        self.quality_filter_checkbox = QCheckBox("Filter mean_ratio: ")
-        self.quality_filter_checkbox.setChecked(False)
-        self.quality_filter_input = QLineEdit("1.5")
-        _onlyFloat = QDoubleValidator()
-        self.quality_filter_input.setValidator(_onlyFloat)
+        self._filter_thresh: float = float("-inf")
 
-        quality_filter_qhbox_layout = QHBoxLayout()
-        quality_filter_qhbox_layout.addWidget(self.quality_filter_checkbox)
-        quality_filter_qhbox_layout.addWidget(self.quality_filter_input)
+        def _filter_update_callback():
+            new_thresh = float(self.filter_input.text())
+            if new_thresh != self._filter_thresh:
+                self._filter_thresh = new_thresh
+                self._update_filtered_img_list()
+                self.m_img_list = (
+                    self.m_img_list_filtered
+                    if self.filter_checkbox.isChecked()
+                    else self.m_img_list_all
+                )
+                self.file_path = None
+                self.open_next_image()
+                self._update_QList_files()
 
-        quality_filter_container = QWidget()
-        quality_filter_container.setLayout(quality_filter_qhbox_layout)
+        self.filter_checkbox = QCheckBox("Filter mean_ratio: ")
+        self.filter_checkbox.setChecked(False)
+        self.filter_checkbox.toggled.connect(_filter_update_callback)
+        self.filter_input = QLineEdit("1.5")
+        self.filter_input.setValidator(QDoubleValidator())
+        self.filter_input.returnPressed.connect(_filter_update_callback)
+
+        filter_qhbox_layout = QHBoxLayout()
+        filter_qhbox_layout.addWidget(self.filter_checkbox)
+        filter_qhbox_layout.addWidget(self.filter_input)
+
+        filter_container = QWidget()
+        filter_container.setLayout(filter_qhbox_layout)
 
         ### Image quality dock
-        self.img_quality_dock = QDockWidget("Image Quality", self)
+        self.img_meta_dock = QDockWidget("Image Metadata", self)
 
         img_quality_layout = QVBoxLayout()
         img_quality_layout.setContentsMargins(0, 0, 0, 0)
@@ -173,8 +192,8 @@ class MainWindow(QMainWindow, WindowMixin):
         img_quality_container = QWidget()
         img_quality_container.setLayout(img_quality_layout)
 
-        self.img_quality_dock.setObjectName("Image quality")
-        self.img_quality_dock.setWidget(img_quality_container)
+        self.img_meta_dock.setObjectName("Image quality")
+        self.img_meta_dock.setWidget(img_quality_container)
 
         ### File list widget
         self.file_list_widget = QListWidget()
@@ -183,7 +202,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
         file_list_layout = QVBoxLayout()
         file_list_layout.setContentsMargins(0, 0, 0, 0)
-        file_list_layout.addWidget(quality_filter_container)
+        file_list_layout.addWidget(filter_container)
         file_list_layout.addWidget(self.file_list_widget)
 
         file_list_container = QWidget()
@@ -217,8 +236,8 @@ class MainWindow(QMainWindow, WindowMixin):
         self.canvas.drawingPolygon.connect(self.toggle_drawing_sensitive)
 
         self.setCentralWidget(scroll)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.img_quality_dock)
-        self.img_quality_dock.setFeatures(QDockWidget.DockWidgetFloatable)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.img_meta_dock)
+        self.img_meta_dock.setFeatures(QDockWidget.DockWidgetFloatable)
         self.addDockWidget(Qt.RightDockWidgetArea, self.dock)
         self.addDockWidget(Qt.RightDockWidgetArea, self.file_dock)
         self.file_dock.setFeatures(QDockWidget.DockWidgetFloatable)
@@ -363,13 +382,13 @@ class MainWindow(QMainWindow, WindowMixin):
             get_str("closeCurDetail"),
         )
 
-        delete_image = action(
-            get_str("deleteImg"),
-            self.delete_image,
-            "Ctrl+Shift+D",
-            "close",
-            get_str("deleteImgDetail"),
-        )
+        # delete_image = action(
+        # get_str("deleteImg"),
+        # self.delete_image,
+        # "Ctrl+Shift+D",
+        # "close",
+        # get_str("deleteImgDetail"),
+        # )
 
         reset_all = action(
             get_str("resetAll"),
@@ -573,7 +592,7 @@ class MainWindow(QMainWindow, WindowMixin):
             open=open,
             close=close,
             resetAll=reset_all,
-            deleteImg=delete_image,
+            # deleteImg=delete_image,
             lineColor=color1,
             create=create,
             delete=delete,
@@ -652,7 +671,7 @@ class MainWindow(QMainWindow, WindowMixin):
                 save_as,
                 close,
                 reset_all,
-                delete_image,
+                # delete_image,
                 quit,
             ),
         )
@@ -1184,7 +1203,7 @@ class MainWindow(QMainWindow, WindowMixin):
     def scroll_request(self, delta, orientation):
         units = -delta / (8 * 15)
         bar = self.scroll_bars[orientation]
-        bar.setValue(bar.value() + bar.singleStep() * units)
+        bar.setValue(int(bar.value() + bar.singleStep() * units))
 
     def set_zoom(self, value):
         self.actions.fitWidth.setChecked(False)
@@ -1244,8 +1263,8 @@ class MainWindow(QMainWindow, WindowMixin):
         new_h_bar_value = h_bar.value() + move_x * d_h_bar_max
         new_v_bar_value = v_bar.value() + move_y * d_v_bar_max
 
-        h_bar.setValue(new_h_bar_value)
-        v_bar.setValue(new_v_bar_value)
+        h_bar.setValue(int(new_h_bar_value))
+        v_bar.setValue(int(new_v_bar_value))
 
     def set_fit_window(self, value=True):
         if value:
@@ -1286,6 +1305,8 @@ class MainWindow(QMainWindow, WindowMixin):
             else:
                 self.file_list_widget.clear()
                 self.m_img_list.clear()
+                self.m_img_list_all.clear()
+                self.m_img_list_filtered.clear()
 
         if file_path and os.path.exists(file_path):
             if LabelFile.is_label_file(file_path):
@@ -1314,6 +1335,8 @@ class MainWindow(QMainWindow, WindowMixin):
                 if self.label_file_format == LabelFileFormat.ARPAM:
                     ### Main read new roi file here
                     self.label_file = LabelFile(filename=file_path, arpam=True)
+                    img_set = self.label_file.arpam_img_set
+                    self.arpam_img_type = img_set.init_type
 
                     # update img meta display
                     img_meta = self.label_file.arpam_img_meta
@@ -1321,6 +1344,7 @@ class MainWindow(QMainWindow, WindowMixin):
                         self.img_meta_label.setText(
                             "".join(
                                 (
+                                    f"{self.label_file.arpam_roi_file.fid}\n",
                                     f"dB: {img_meta.dB:.3f}\n",
                                     f"mean ratio: {img_meta.mean_ratio:.3f}\n",
                                     f"balloon mean: {img_meta.bal_mean:.3f}\n",
@@ -1348,7 +1372,7 @@ class MainWindow(QMainWindow, WindowMixin):
                 )
                 self.status("Error reading %s" % file_path)
                 return False
-            self.status("Loaded %s" % os.path.basename(file_path))
+            self.status(f"Loaded {os.path.basename(file_path)} ({self.arpam_img_type})")
             self.image = image
             self.file_path = file_path
             self.canvas.load_pixmap(QPixmap.fromImage(image))
@@ -1385,7 +1409,8 @@ class MainWindow(QMainWindow, WindowMixin):
                 file_widget_item.setSelected(True)
             else:
                 self.file_list_widget.clear()
-                self.m_img_list.clear()
+                self.m_img_list_all.clear()
+                self.m_img_list_filtered.clear()
 
         # Load image:
         # read data first and store for saving into label file.
@@ -1404,7 +1429,7 @@ class MainWindow(QMainWindow, WindowMixin):
             self.status("Error reading %s" % fpath)
             return False
 
-        self.status("Loaded %s" % os.path.basename(fpath))
+        self.status(f"Loaded {os.path.basename(fpath)} ({self.arpam_img_type})")
         self.image = image
         self.file_path = fpath
         self.canvas.load_pixmap(QPixmap.fromImage(image))
@@ -1431,7 +1456,7 @@ class MainWindow(QMainWindow, WindowMixin):
         """
         Converts image counter to string representation.
         """
-        return "[{} / {}]".format(self.cur_img_idx + 1, self.img_count)
+        return "[{} / {}]".format(self.cur_img_idx + 1, len(self.m_img_list))
 
     def show_bounding_box_from_annotation_file(self, file_path):
         if self.label_file_format == LabelFileFormat.ARPAM:
@@ -1561,16 +1586,6 @@ class MainWindow(QMainWindow, WindowMixin):
             return
 
         path = os.path.dirname(self.file_path) if self.file_path else "."
-        if self.label_file_format == LabelFileFormat.PASCAL_VOC:
-            filters = "Open Annotation XML file (%s)" % " ".join(["*.xml"])
-            filename = QFileDialog.getOpenFileName(
-                self, "%s - Choose a xml file" % __appname__, path, filters
-            )
-
-            if filename:
-                if isinstance(filename, (tuple, list)):
-                    filename = filename[0]
-            self.load_pascal_xml_by_filename(filename)
 
     def open_dir_dialog(self, _value=False, dir_path=None, silent=False):
         if not self.may_continue():
@@ -1596,6 +1611,36 @@ class MainWindow(QMainWindow, WindowMixin):
         self.last_open_dir = target_dir_path
         self.import_dir_images(target_dir_path)
 
+    def _update_filtered_img_list(self):
+        if self.filter_checkbox.isChecked():
+            filtered = []
+            for img_path in self.m_img_list_all:
+                try:
+                    img_set = arpam_roi.CoImageSet.from_path(img_path)
+                except ValueError as e:
+                    print(e)
+                    continue
+                img_meta_p = img_set.meta
+                if img_meta_p.exists():
+                    img_meta = arpam_meta.ImgMeta.from_path(img_meta_p)
+
+                    if img_meta.mean_ratio > self._filter_thresh:
+                        filtered.append(img_path)
+
+            self.m_img_list_filtered = filtered
+            self.m_img_list = filtered
+
+        else:
+            self.m_img_list = self.m_img_list_all
+
+        self._update_QList_files()
+
+    def _update_QList_files(self):
+        self.file_list_widget.clear()
+        for imgPath in self.m_img_list:
+            item = QListWidgetItem(imgPath)
+            self.file_list_widget.addItem(item)
+
     def import_dir_images(self, dir_path):
         if not self.may_continue() or not dir_path:
             return
@@ -1604,12 +1649,13 @@ class MainWindow(QMainWindow, WindowMixin):
         self.dir_name = dir_path
         self.file_path = None
         self.file_list_widget.clear()
-        self.m_img_list = self.scan_all_images(dir_path)
-        self.img_count = len(self.m_img_list)
+        self.m_img_list_all = self.scan_all_images(dir_path)
+
+        # Generate Filter list
+        self._update_filtered_img_list()
+
         self.open_next_image()
-        for imgPath in self.m_img_list:
-            item = QListWidgetItem(imgPath)
-            self.file_list_widget.addItem(item)
+        self._update_QList_files()
 
     def verify_image(self, _value=False):
         # Proceeding next image without dialog if having any label
@@ -1642,17 +1688,16 @@ class MainWindow(QMainWindow, WindowMixin):
         if not self.may_continue():
             return
 
-        if self.img_count <= 0:
+        if len(self.m_img_list) <= 0:
             return
 
         if self.file_path is None:
             return
 
-        if self.cur_img_idx - 1 >= 0:
-            self.cur_img_idx -= 1
-            filename = self.m_img_list[self.cur_img_idx]
-            if filename:
-                self.load_file(filename)
+        self.cur_img_idx = (self.cur_img_idx - 1) % len(self.m_img_list)
+        filename = self.m_img_list[self.cur_img_idx]
+        if filename:
+            self.load_file(filename)
 
     def action_open_coreg_img(self, coreg_type: CoImageType, _value=False):
         if (
@@ -1660,19 +1705,19 @@ class MainWindow(QMainWindow, WindowMixin):
             and self.label_file
             and self.label_file.arpam_roi_file
         ):
-            if coreg_type == CoImageType.PA:
-                img_path = str(self.label_file.arpam_roi_file.img_set.PA)
-            elif coreg_type == CoImageType.US:
-                img_path = str(self.label_file.arpam_roi_file.img_set.US)
-            elif coreg_type == CoImageType.SUM:
-                img_path = str(self.label_file.arpam_roi_file.img_set.Sum)
-            else:
+            try:
+                img_path = str(
+                    self.label_file.arpam_roi_file.img_set.to_type(coreg_type)
+                )
+            except ValueError as e:
+                print(e)
                 img_path = str(self.label_file.arpam_roi_file.img_set.Debug)
 
             try:
                 # update index
                 self.cur_img_idx = self.m_img_list.index(img_path)
-            except ValueError:  # file not found
+            except ValueError as e:  # file not found
+                print(e)
                 return
 
             self.arpam_img_type = coreg_type
@@ -1691,17 +1736,17 @@ class MainWindow(QMainWindow, WindowMixin):
         if not self.may_continue():
             return
 
-        if self.img_count <= 0:
+        if len(self.m_img_list) <= 0:
             return
 
         filename = None
+
         if self.file_path is None:
             filename = self.m_img_list[0]
             self.cur_img_idx = 0
         else:
-            if self.cur_img_idx + 1 < self.img_count:
-                self.cur_img_idx += 1
-                filename = self.m_img_list[self.cur_img_idx]
+            self.cur_img_idx = (self.cur_img_idx + 1) % len(self.m_img_list)
+            filename = self.m_img_list[self.cur_img_idx]
 
         if filename:
             self.load_file(filename)
@@ -1724,7 +1769,6 @@ class MainWindow(QMainWindow, WindowMixin):
             if isinstance(filename, (tuple, list)):
                 filename = filename[0]
             self.cur_img_idx = 0
-            self.img_count = 1
             self.load_file(filename)
 
     def save_file(self, _value=False):
@@ -1784,15 +1828,15 @@ class MainWindow(QMainWindow, WindowMixin):
         self.canvas.setEnabled(False)
         self.actions.saveAs.setEnabled(False)
 
-    def delete_image(self):
-        delete_path = self.file_path
-        if delete_path is not None:
-            self.open_next_image()
-            self.cur_img_idx -= 1
-            self.img_count -= 1
-            if os.path.exists(delete_path):
-                os.remove(delete_path)
-            self.import_dir_images(self.last_open_dir)
+    # def delete_image(self):
+    # delete_path = self.file_path
+    # if delete_path is not None:
+    # self.open_next_image()
+    # self.cur_img_idx -= 1
+    # self.img_count -= 1
+    # if os.path.exists(delete_path):
+    # os.remove(delete_path)
+    # self.import_dir_images(self.last_open_dir)
 
     def reset_all(self):
         self.settings.reset()
@@ -1880,45 +1924,6 @@ class MainWindow(QMainWindow, WindowMixin):
                         self.label_hist = [line]
                     else:
                         self.label_hist.append(line)
-
-    # def load_pascal_xml_by_filename(self, xml_path):
-    #     if self.file_path is None:
-    #         return
-    #     if os.path.isfile(xml_path) is False:
-    #         return
-
-    #     self.set_format(FORMAT_PASCALVOC)
-
-    #     t_voc_parse_reader = PascalVocReader(xml_path)
-    #     shapes = t_voc_parse_reader.get_shapes()
-    #     self.load_labels(shapes)
-    #     self.canvas.verified = t_voc_parse_reader.verified
-
-    # def load_yolo_txt_by_filename(self, txt_path):
-    #     if self.file_path is None:
-    #         return
-    #     if os.path.isfile(txt_path) is False:
-    #         return
-
-    #     self.set_format(FORMAT_YOLO)
-    #     t_yolo_parse_reader = YoloReader(txt_path, self.image)
-    #     shapes = t_yolo_parse_reader.get_shapes()
-    #     print(shapes)
-    #     self.load_labels(shapes)
-    #     self.canvas.verified = t_yolo_parse_reader.verified
-
-    # def load_create_ml_json_by_filename(self, json_path, file_path):
-    #     if self.file_path is None:
-    #         return
-    #     if os.path.isfile(json_path) is False:
-    #         return
-
-    #     self.set_format(FORMAT_CREATEML)
-
-    #     create_ml_parse_reader = CreateMLReader(json_path, file_path)
-    #     shapes = create_ml_parse_reader.get_shapes()
-    #     self.load_labels(shapes)
-    #     self.canvas.verified = create_ml_parse_reader.verified
 
     def load_arpam_by_img_path(self, img_path):
         # TODO

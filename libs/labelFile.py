@@ -7,20 +7,12 @@ from typing import Optional
 from enum import Enum
 import os.path
 
-from arpamutils.roi import ROI_File
+from arpamutils.roi import ROI_File, CoImageSet
 from arpamutils.metadata import ImgMeta
 
 
 class LabelFileFormat(Enum):
     ARPAM = 4
-
-
-class CoImageType(Enum):
-    NOT_SET = 0
-    PA = 1
-    US = 2
-    SUM = 3
-    DEBUG = 4
 
 
 class LabelFileError(Exception):
@@ -38,8 +30,11 @@ class LabelFile(object):
         self.verified = False
         self.arpam_roi_file: Optional[ROI_File] = None
         self.arpam_img_meta: Optional[ImgMeta] = None
+        self.arpam_img_set: Optional[CoImageSet] = None
 
         if arpam:
+            self.arpam_img_set = CoImageSet.from_path(filename)
+
             ## Load ROI file
             self.arpam_roi_file = ROI_File.from_img_path(filename)
             for bbox in self.arpam_roi_file.bboxes:
@@ -59,7 +54,8 @@ class LabelFile(object):
                 self.shapes.append(shape)
 
             ## Load meta file
-            meta_path = self.arpam_roi_file.img_set.meta
+            meta_path = self.arpam_img_set.meta
+            # If meta file not found, silently ignore
             if meta_path.exists():
                 self.arpam_img_meta = ImgMeta.from_path(
                     self.arpam_roi_file.img_set.meta
