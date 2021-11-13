@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 from functools import partial
 import argparse
 import codecs
@@ -81,7 +81,8 @@ class MainWindow(QMainWindow, WindowMixin):
         self.arpam_img_type: CoImageType = CoImageType.NOT_SET
 
         # For loading all image under a directory
-        self.m_img_list = []
+        self.m_img_list: List[str] = []
+        self.m_img_list_filtered: List[str] = []
         self.dir_name = None
         self.label_hist = []
         self.last_open_dir = None
@@ -111,7 +112,7 @@ class MainWindow(QMainWindow, WindowMixin):
         # Create a widget for using default label
         self.use_default_label_checkbox = QCheckBox(get_str("useDefaultLabel"))
         self.use_default_label_checkbox.setChecked(False)
-        self.default_label_text_line = QLineEdit()
+        self.default_label_text_line = QLineEdit("")
         use_default_label_qhbox_layout = QHBoxLayout()
         use_default_label_qhbox_layout.addWidget(self.use_default_label_checkbox)
         use_default_label_qhbox_layout.addWidget(self.default_label_text_line)
@@ -146,12 +147,18 @@ class MainWindow(QMainWindow, WindowMixin):
         self.dock.setWidget(label_list_container)
 
         # Create a widget for picking only good images
-        self.only_good_img_checkbox = QCheckBox("See only good images")
-        self.only_good_img_checkbox.setChecked(False)
-        only_good_img_qhbox_layout = QHBoxLayout()
-        only_good_img_qhbox_layout.addWidget(self.only_good_img_checkbox)
-        only_good_img_container = QWidget()
-        only_good_img_container.setLayout(only_good_img_qhbox_layout)
+        self.quality_filter_checkbox = QCheckBox("Filter mean_ratio: ")
+        self.quality_filter_checkbox.setChecked(False)
+        self.quality_filter_input = QLineEdit("1.5")
+        _onlyFloat = QDoubleValidator()
+        self.quality_filter_input.setValidator(_onlyFloat)
+
+        quality_filter_qhbox_layout = QHBoxLayout()
+        quality_filter_qhbox_layout.addWidget(self.quality_filter_checkbox)
+        quality_filter_qhbox_layout.addWidget(self.quality_filter_input)
+
+        quality_filter_container = QWidget()
+        quality_filter_container.setLayout(quality_filter_qhbox_layout)
 
         ### Image quality dock
         self.img_quality_dock = QDockWidget("Image Quality", self)
@@ -175,7 +182,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
         file_list_layout = QVBoxLayout()
         file_list_layout.setContentsMargins(0, 0, 0, 0)
-        file_list_layout.addWidget(only_good_img_container)
+        file_list_layout.addWidget(quality_filter_container)
         file_list_layout.addWidget(self.file_list_widget)
 
         file_list_container = QWidget()
@@ -1501,7 +1508,7 @@ class MainWindow(QMainWindow, WindowMixin):
         if self.may_continue():
             self.load_file(filename)
 
-    def scan_all_images(self, folder_path):
+    def scan_all_images(self, folder_path: str) -> List[str]:
         extensions = tuple(
             ".%s" % fmt.data().decode("ascii").lower()
             for fmt in QImageReader.supportedImageFormats()
