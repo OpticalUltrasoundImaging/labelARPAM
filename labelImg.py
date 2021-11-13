@@ -182,18 +182,11 @@ class MainWindow(QMainWindow, WindowMixin):
         ### Image quality dock
         self.img_meta_dock = QDockWidget("Image Metadata", self)
 
-        img_quality_layout = QVBoxLayout()
-        img_quality_layout.setContentsMargins(0, 0, 0, 0)
         self.img_meta_label = QLabel()
         self.img_meta_label.setText("N/A")
-        img_quality_layout.addWidget(self.img_meta_label)
-
-        img_quality_layout.addWidget(self.img_meta_label)
-        img_quality_container = QWidget()
-        img_quality_container.setLayout(img_quality_layout)
-
         self.img_meta_dock.setObjectName("Image quality")
-        self.img_meta_dock.setWidget(img_quality_container)
+
+        self.img_meta_dock.setWidget(self.img_meta_label)
 
         ### File list widget
         self.file_list_widget = QListWidget()
@@ -236,9 +229,12 @@ class MainWindow(QMainWindow, WindowMixin):
         self.canvas.drawingPolygon.connect(self.toggle_drawing_sensitive)
 
         self.setCentralWidget(scroll)
+
         self.addDockWidget(Qt.RightDockWidgetArea, self.img_meta_dock)
         self.img_meta_dock.setFeatures(QDockWidget.DockWidgetFloatable)
+
         self.addDockWidget(Qt.RightDockWidgetArea, self.dock)
+
         self.addDockWidget(Qt.RightDockWidgetArea, self.file_dock)
         self.file_dock.setFeatures(QDockWidget.DockWidgetFloatable)
 
@@ -1334,7 +1330,13 @@ class MainWindow(QMainWindow, WindowMixin):
                 self.label_file = None
                 if self.label_file_format == LabelFileFormat.ARPAM:
                     ### Main read new roi file here
-                    self.label_file = LabelFile(filename=file_path, arpam=True)
+                    try:
+                        self.label_file = LabelFile(filename=file_path, arpam=True)
+                    except Exception as e:
+                        print(e)
+                        self.status(str(e))
+                        return
+
                     img_set = self.label_file.arpam_img_set
                     self.arpam_img_type = img_set.init_type
 
@@ -1345,7 +1347,7 @@ class MainWindow(QMainWindow, WindowMixin):
                             "".join(
                                 (
                                     f"{self.label_file.arpam_roi_file.fid}\n",
-                                    f"dB: {img_meta.dB:.3f}\n",
+                                    f"PA dB: {img_meta.dB:.3f}\n",
                                     f"mean ratio: {img_meta.mean_ratio:.3f}\n",
                                     f"balloon mean: {img_meta.bal_mean:.3f}\n",
                                     f"balloon std: {img_meta.bal_std:.3f}\n",
@@ -1697,7 +1699,11 @@ class MainWindow(QMainWindow, WindowMixin):
         self.cur_img_idx = (self.cur_img_idx - 1) % len(self.m_img_list)
         filename = self.m_img_list[self.cur_img_idx]
         if filename:
-            self.load_file(filename)
+            try:
+                self.load_file(filename)
+            except Exception as e:
+                print(e)
+                self.status(str(e))
 
     def action_open_coreg_img(self, coreg_type: CoImageType, _value=False):
         if (
