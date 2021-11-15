@@ -150,23 +150,22 @@ class MainWindow(QMainWindow, WindowMixin):
 
         # Create a widget for picking only good images
         self._filter_thresh: float = float("-inf")
+        self._last_filter_checked: bool = False
 
         def _filter_update_callback():
-            new_thresh = float(self.filter_input.text())
-            if new_thresh != self._filter_thresh:
-                self._filter_thresh = new_thresh
-                self._update_filtered_img_list()
-                self.m_img_list = (
-                    self.m_img_list_filtered
-                    if self.filter_checkbox.isChecked()
-                    else self.m_img_list_all
-                )
-                self.file_path = None
-                self.open_next_image()
-                self._update_QList_files()
+            if self.filter_checkbox.isChecked() == self._last_filter_checked:
+                return
+
+            self._last_filter_checked = self.filter_checkbox.isChecked()
+            self._filter_thresh = float(self.filter_input.text())
+
+            self._update_filtered_img_list()
+            self.file_path = None
+            self.open_next_image()
+            self._update_QList_files()
 
         self.filter_checkbox = QCheckBox("Filter mean_ratio: ")
-        self.filter_checkbox.setChecked(False)
+        self.filter_checkbox.setChecked(self._last_filter_checked)
         self.filter_checkbox.toggled.connect(_filter_update_callback)
         self.filter_input = QLineEdit("1.5")
         self.filter_input.setValidator(QDoubleValidator())
@@ -1614,7 +1613,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.import_dir_images(target_dir_path)
 
     def _update_filtered_img_list(self):
-        if self.filter_checkbox.isChecked():
+        if self._last_filter_checked:
             filtered = []
             for img_path in self.m_img_list_all:
                 try:
