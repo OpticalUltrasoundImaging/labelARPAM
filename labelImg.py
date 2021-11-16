@@ -208,9 +208,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
         self.canvas = Canvas(parent=self)
         self.canvas.zoomRequest.connect(self.zoom_request)
-        self.canvas.set_drawing_shape_to_square(
-            settings.get(SETTING_DRAW_SQUARE, False)
-        )
+        self.canvas.set_drawing_shape_to_square(False)
 
         scroll = QScrollArea()
         scroll.setWidget(self.canvas)
@@ -246,16 +244,16 @@ class MainWindow(QMainWindow, WindowMixin):
         action = partial(new_action, self)
         quit = action(get_str("quit"), self.close, "Ctrl+Q", "quit", get_str("quitApp"))
 
-        open = action(
-            get_str("openFile"),
-            self.open_file,
-            "Ctrl+O",
-            "open",
-            get_str("openFileDetail"),
-        )
+        # open = action(
+        # get_str("openFile"),
+        # self.open_file,
+        # "Ctrl+O",
+        # "open",
+        # get_str("openFileDetail"),
+        # )
 
         open_dir = action(
-            get_str("openDir"),
+            "Open Dir (Ctrl+u)",
             self.open_dir_dialog,
             "Ctrl+u",
             "open",
@@ -265,13 +263,13 @@ class MainWindow(QMainWindow, WindowMixin):
         # change_save_dir = action(get_str('changeSaveDir'), self.change_save_dir_dialog,
         # 'Ctrl+r', 'open', get_str('changeSavedAnnotationDir'))
 
-        open_annotation = action(
-            get_str("openAnnotation"),
-            self.open_annotation_dialog,
-            "Ctrl+Shift+O",
-            "open",
-            get_str("openAnnotationDetail"),
-        )
+        # open_annotation = action(
+        # get_str("openAnnotation"),
+        # self.open_annotation_dialog,
+        # "Ctrl+Shift+O",
+        # "open",
+        # get_str("openAnnotationDetail"),
+        # )
 
         copy_prev_bounding = action(
             get_str("copyPrevBounding"),
@@ -282,36 +280,36 @@ class MainWindow(QMainWindow, WindowMixin):
         )
 
         open_US_img = action(
-            "US image",
+            "Show US (u)",
             partial(self.action_open_coreg_img, CoImageType.US),
             "u",
             "open US img",
-            "US image (u)",
+            "Switch to US image (u)",
         )
         open_PA_img = action(
-            "PA image",
+            "Show PA (p)",
             partial(self.action_open_coreg_img, CoImageType.PA),
             "p",
             "open PA img",
-            "PA image (p)",
+            "Switch to PA image (p)",
         )
         open_SUM_img = action(
-            "Sum image",
+            "Show Sum (s)",
             partial(self.action_open_coreg_img, CoImageType.SUM),
             "s",
             "open SUM img",
-            "Sum image (s)",
+            "Swich to Sum image (s)",
         )
         open_DEBUG_img = action(
-            "Debug image",
+            "Show Debug (v)",
             partial(self.action_open_coreg_img, CoImageType.DEBUG),
             "v",
             "open debug img",
-            "Debug image (v)",
+            "Switch to Debug image (v)",
         )
 
         open_next_image = action(
-            get_str("nextImg"),
+            "Next Image (d)",
             self.open_next_image,
             "d",
             "next",
@@ -319,7 +317,7 @@ class MainWindow(QMainWindow, WindowMixin):
         )
 
         open_prev_image = action(
-            get_str("prevImg"),
+            "Prev Image (a)",
             self.open_prev_image,
             "a",
             "prev",
@@ -335,7 +333,7 @@ class MainWindow(QMainWindow, WindowMixin):
         )
 
         save = action(
-            get_str("save"),
+            "Save (ctrl-s)",
             self.save_file,
             "Ctrl+S",
             "save",
@@ -402,7 +400,7 @@ class MainWindow(QMainWindow, WindowMixin):
         )
 
         create_mode = action(
-            get_str("crtBox"),
+            "Create RectBox (w)",
             self.set_create_mode,
             "w",
             "new",
@@ -419,7 +417,7 @@ class MainWindow(QMainWindow, WindowMixin):
         )
 
         create = action(
-            get_str("crtBox"),
+            "Create RectBox beginner (w)",
             self.create_shape,
             "w",
             "new",
@@ -538,7 +536,7 @@ class MainWindow(QMainWindow, WindowMixin):
         }
 
         edit = action(
-            get_str("editLabel"),
+            "Edit Label (Ctrl+E)",
             self.edit_label,
             "Ctrl+E",
             "edit",
@@ -652,13 +650,13 @@ class MainWindow(QMainWindow, WindowMixin):
         add_actions(
             self.menus.file,
             (
-                open,
+                # open,
                 open_dir,
                 open_PA_img,
                 open_US_img,
                 open_SUM_img,
                 open_DEBUG_img,
-                open_annotation,
+                # open_annotation,
                 copy_prev_bounding,
                 self.menus.recentFiles,
                 save,
@@ -705,7 +703,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
         self.tools = self.toolbar("Tools")
         self.actions.beginner = (
-            open,
+            # open,
             open_dir,
             open_next_image,
             open_prev_image,
@@ -725,7 +723,7 @@ class MainWindow(QMainWindow, WindowMixin):
         )
 
         self.actions.advanced = (
-            open,
+            # open,
             open_dir,
             open_PA_img,
             open_US_img,
@@ -832,13 +830,15 @@ class MainWindow(QMainWindow, WindowMixin):
             self.open_dir_dialog(dir_path=self.file_path, silent=True)
 
     def keyReleaseEvent(self, event):
-        if event.key() == Qt.Key_Control:
-            self.canvas.set_drawing_shape_to_square(False)
+        # if event.key() == Qt.Key_Control:
+        # self.canvas.set_drawing_shape_to_square(False)
+        ...
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Control:
-            # Draw rectangle if Ctrl is pressed
-            self.canvas.set_drawing_shape_to_square(True)
+        # if event.key() == Qt.Key_Control:
+        # # Draw rectangle if Ctrl is pressed
+        # self.canvas.set_drawing_shape_to_square(True)
+        ...
 
     # Support Functions #
     def set_format(self, save_format):
