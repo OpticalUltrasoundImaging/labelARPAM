@@ -777,17 +777,18 @@ class MainWindow(QMainWindow, WindowMixin):
         self.move(position)
         save_dir = settings.get(SETTING_SAVE_DIR, None)
         self.last_open_dir = settings.get(SETTING_LAST_OPEN_DIR, None)
-        if (
-            self.default_save_dir is None
-            and save_dir is not None
-            and os.path.exists(save_dir)
-        ):
-            self.default_save_dir = save_dir
-            self.statusBar().showMessage(
-                "%s started. Annotation will be saved to %s"
-                % (__appname__, self.default_save_dir)
-            )
-            self.statusBar().show()
+        # This default save_dir is not used
+        # if (
+            # self.default_save_dir is None
+            # and save_dir is not None
+            # and os.path.exists(save_dir)
+        # ):
+            # self.default_save_dir = save_dir
+            # self.statusBar().showMessage(
+                # "%s started. Annotation will be saved to %s"
+                # % (__appname__, self.default_save_dir)
+            # )
+            # self.statusBar().show()
 
         self.restoreState(settings.get(SETTING_WIN_STATE, QByteArray()))
         Shape.line_color = self.line_color = QColor(
@@ -1095,11 +1096,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
         self.combo_box.update_items(unique_text_list)
 
-    def save_labels(self, annotation_file_path: str):
-        if self.label_file is None:
-            self.label_file = LabelFile()
-            self.label_file.verified = self.canvas.verified
-
+    def save_labels(self):
         def format_shape(s):
             return dict(
                 label=s.label,
@@ -1115,9 +1112,11 @@ class MainWindow(QMainWindow, WindowMixin):
             self.label_file.save_arpam_format(shapes, self.file_path, self.image_data)
             print(
                 "Image:{0} -> Annotation:{1}".format(
-                    self.file_path, annotation_file_path
+                    self.file_path, self.label_file.arpam_img_set.roi
                 )
             )
+            self.statusBar().showMessage("Saved to  %s" % self.label_file.arpam_img_set.roi)
+            self.statusBar().show()
             return True
         except LabelFileError as e:
             self.error_message("Error saving label data", "<b>%s</b>" % e)
@@ -1777,22 +1776,23 @@ class MainWindow(QMainWindow, WindowMixin):
             self.load_file(filename)
 
     def save_file(self, _value=False):
-        if self.default_save_dir is not None and len(self.default_save_dir):
-            if self.file_path:
-                image_file_name = os.path.basename(self.file_path)
-                saved_file_name = os.path.splitext(image_file_name)[0]
-                saved_path = os.path.join(self.default_save_dir, saved_file_name)
-                self._save_file(saved_path)
-        else:
-            image_file_dir = os.path.dirname(self.file_path)
-            image_file_name = os.path.basename(self.file_path)
-            saved_file_name = os.path.splitext(image_file_name)[0]
-            saved_path = os.path.join(image_file_dir, saved_file_name)
-            self._save_file(
-                saved_path
-                if self.label_file
-                else self.save_file_dialog(remove_ext=False)
-            )
+        # if self.default_save_dir is not None and len(self.default_save_dir):
+            # if self.file_path:
+                # image_file_name = os.path.basename(self.file_path)
+                # saved_file_name = os.path.splitext(image_file_name)[0]
+                # saved_path = os.path.join(self.default_save_dir, saved_file_name)
+                # self._save_file(saved_path)
+        # else:
+            # image_file_dir = os.path.dirname(self.file_path)
+            # image_file_name = os.path.basename(self.file_path)
+            # saved_file_name = os.path.splitext(image_file_name)[0]
+            # saved_path = os.path.join(image_file_dir, saved_file_name)
+            # self._save_file(
+                # saved_path
+                # if self.label_file
+                # else self.save_file_dialog(remove_ext=False)
+            # )
+        self._save_file()
 
     def save_file_as(self, _value=False):
         assert not self.image.isNull(), "cannot save empty image"
@@ -1818,11 +1818,13 @@ class MainWindow(QMainWindow, WindowMixin):
                 return full_file_path
         return ""
 
-    def _save_file(self, annotation_file_path):
-        if annotation_file_path and self.save_labels(annotation_file_path):
-            self.set_clean()
-            self.statusBar().showMessage("Saved to  %s" % annotation_file_path)
-            self.statusBar().show()
+    def _save_file(self):
+        # if annotation_file_path and self.save_labels(annotation_file_path):
+            # self.set_clean()
+            # self.statusBar().showMessage("Saved to  %s" % annotation_file_path)
+            # self.statusBar().show()
+        self.save_labels()
+        self.set_clean()
 
     def close_file(self, _value=False):
         if not self.may_continue():
