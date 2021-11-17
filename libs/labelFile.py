@@ -31,35 +31,37 @@ class LabelFile(object):
         self.arpam_roi_file: Optional[ROI_File] = None
         self.arpam_img_meta: Optional[ImgMeta] = None
         self.arpam_img_set: Optional[CoImageSet] = None
+        self.filename = filename
 
         if arpam:
-            self.arpam_img_set = CoImageSet.from_path(filename)
+            self._load_arpam_roi_file()
 
-            ## Load ROI file
-            self.arpam_roi_file = ROI_File.from_img_path(filename)
-            for bbox in self.arpam_roi_file.bboxes:
-                x_max = round(bbox.xmax * self.arpam_roi_file.size.w)
-                x_min = round(bbox.xmin * self.arpam_roi_file.size.w)
-                y_max = round(bbox.ymax * self.arpam_roi_file.size.w)
-                y_min = round(bbox.ymin * self.arpam_roi_file.size.w)
+    def _load_arpam_roi_file(self):
+        self.arpam_img_set = CoImageSet.from_path(self.filename)
 
-                points = [
-                    (x_min, y_min),
-                    (x_max, y_min),
-                    (x_max, y_max),
-                    (x_min, y_max),
-                ]
+        ## Load ROI file
+        self.arpam_roi_file = ROI_File.from_img_path(self.filename)
+        for bbox in self.arpam_roi_file.bboxes:
+            x_max = round(bbox.xmax * self.arpam_roi_file.size.w)
+            x_min = round(bbox.xmin * self.arpam_roi_file.size.w)
+            y_max = round(bbox.ymax * self.arpam_roi_file.size.h)
+            y_min = round(bbox.ymin * self.arpam_roi_file.size.h)
 
-                shape = (bbox.name, points, None, None)
-                self.shapes.append(shape)
+            points = [
+                (x_min, y_min),
+                (x_max, y_min),
+                (x_max, y_max),
+                (x_min, y_max),
+            ]
 
-            ## Load meta file
-            meta_path = self.arpam_img_set.meta
-            # If meta file not found, silently ignore
-            if meta_path.exists():
-                self.arpam_img_meta = ImgMeta.from_path(
-                    self.arpam_roi_file.img_set.meta
-                )
+            shape = (bbox.name, points, None, None)
+            self.shapes.append(shape)
+
+        ## Load meta file
+        meta_path = self.arpam_img_set.meta
+        # If meta file not found, silently ignore
+        if meta_path.exists():
+            self.arpam_img_meta = ImgMeta.from_path(self.arpam_roi_file.img_set.meta)
 
     def save_arpam_format(self, shapes, image_path, image_data):
         if isinstance(image_data, QImage):
@@ -68,14 +70,30 @@ class LabelFile(object):
             image = QImage()
             image.load(image_path)
 
-        self.arpam_roi_file.bboxes = []
+        _size = image.size()
+        h, w = _size.height(), _size.width()
+        self.arpam_roi_file.clear_bboxes()
         for shape in shapes:
             points = shape["points"]
             x = [p[0] for p in points]
             y = [p[1] for p in points]
-            self.arpam_roi_file.add_bbox(shape["label"], min(x), max(x), min(y), max(y))
+            print(points)
+            print(
+                min(x) / w,
+                max(x) / w,                
+                min(y) / h,
+                max(y) / h,
+            )
+            self.arpam_roi_file.add_bbox(
+                label=shape["label"],
+                xmin=min(x) / w,
+                xmax=max(x) / w,
+                ymin=min(y) / h,
+                ymax=max(y) / h,
+            )
 
         self.arpam_roi_file.save()
+        self._load_arpam_roi_file()
 
     def toggle_verify(self):
         self.verified = not self.verified

@@ -153,11 +153,15 @@ class MainWindow(QMainWindow, WindowMixin):
         self._last_filter_checked: bool = False
 
         def _filter_update_callback():
-            if self.filter_checkbox.isChecked() == self._last_filter_checked:
-                return
+            # if self.filter_checkbox.isChecked() == self._last_filter_checked:
+                # return
 
             self._last_filter_checked = self.filter_checkbox.isChecked()
-            self._filter_thresh = float(self.filter_input.text())
+            try:
+                self._filter_thresh = float(self.filter_input.text())
+            except ValueError as e:
+                self.error_message("Filter Error", "Cannot accept empty string as filter threshold.")
+                return
 
             self._update_filtered_img_list()
             self.file_path = None
@@ -1637,6 +1641,9 @@ class MainWindow(QMainWindow, WindowMixin):
 
     def _update_QList_files(self):
         self.file_list_widget.clear()
+        if len(self.m_img_list) == 0:
+            self.status("After filtering, no images are left.")
+
         for imgPath in self.m_img_list:
             item = QListWidgetItem(imgPath)
             self.file_list_widget.addItem(item)
@@ -1704,6 +1711,8 @@ class MainWindow(QMainWindow, WindowMixin):
                 self.status(str(e))
 
     def action_open_coreg_img(self, coreg_type: CoImageType, _value=False):
+        # need to save current shapes before opening coreg image
+        self.save_file()
         if (
             self.arpam_img_type != coreg_type
             and self.label_file
@@ -1714,8 +1723,9 @@ class MainWindow(QMainWindow, WindowMixin):
                     self.label_file.arpam_roi_file.img_set.to_type(coreg_type)
                 )
             except ValueError as e:
+                self.status(str(e))
                 print(e)
-                img_path = str(self.label_file.arpam_roi_file.img_set.Debug)
+                img_path = str(self.label_file.arpam_roi_file.img_set.Sum)
 
             try:
                 # update index
