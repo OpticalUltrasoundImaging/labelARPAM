@@ -111,11 +111,24 @@ class MainWindow(QMainWindow, WindowMixin):
         list_layout = QVBoxLayout()
         list_layout.setContentsMargins(0, 0, 0, 0)
 
+        def _check_good_PA_good_US_callback():
+            self.set_dirty()
+
+        # Good PA and good US checkboxes
+        self.good_PA = QCheckBox("Good PA data")
+        self.good_PA.setChecked(False)
+        self.good_PA.toggled.connect(_check_good_PA_good_US_callback)
+        self.good_US = QCheckBox("Good US data")
+        self.good_US.setChecked(False)
+        self.good_US.toggled.connect(_check_good_PA_good_US_callback)
+
         # Create a widget for using default label
         self.use_default_label_checkbox = QCheckBox(get_str("useDefaultLabel"))
         self.use_default_label_checkbox.setChecked(False)
         self.default_label_text_line = QLineEdit("")
         use_default_label_qhbox_layout = QHBoxLayout()
+        use_default_label_qhbox_layout.addWidget(self.good_PA)
+        use_default_label_qhbox_layout.addWidget(self.good_US)
         use_default_label_qhbox_layout.addWidget(self.use_default_label_checkbox)
         use_default_label_qhbox_layout.addWidget(self.default_label_text_line)
         use_default_label_container = QWidget()
@@ -154,13 +167,15 @@ class MainWindow(QMainWindow, WindowMixin):
 
         def _filter_update_callback():
             # if self.filter_checkbox.isChecked() == self._last_filter_checked:
-                # return
+            # return
 
             self._last_filter_checked = self.filter_checkbox.isChecked()
             try:
                 self._filter_thresh = float(self.filter_input.text())
             except ValueError as e:
-                self.error_message("Filter Error", "Cannot accept empty string as filter threshold.")
+                self.error_message(
+                    "Filter Error", "Cannot accept empty string as filter threshold."
+                )
                 return
 
             self._update_filtered_img_list()
@@ -194,7 +209,6 @@ class MainWindow(QMainWindow, WindowMixin):
         ### File list widget
         self.file_list_widget = QListWidget()
         self.file_list_widget.itemDoubleClicked.connect(self.file_item_double_clicked)
-        ## TODO impl filter
 
         file_list_layout = QVBoxLayout()
         file_list_layout.setContentsMargins(0, 0, 0, 0)
@@ -412,9 +426,9 @@ class MainWindow(QMainWindow, WindowMixin):
             enabled=False,
         )
         edit_mode = action(
-            get_str("editBox"),
+            "Edit RectBox (e)",
             self.set_edit_mode,
-            "Ctrl+J",
+            "e",
             "edit",
             get_str("editBoxDetail"),
             enabled=False,
@@ -783,16 +797,16 @@ class MainWindow(QMainWindow, WindowMixin):
         self.last_open_dir = settings.get(SETTING_LAST_OPEN_DIR, None)
         # This default save_dir is not used
         # if (
-            # self.default_save_dir is None
-            # and save_dir is not None
-            # and os.path.exists(save_dir)
+        # self.default_save_dir is None
+        # and save_dir is not None
+        # and os.path.exists(save_dir)
         # ):
-            # self.default_save_dir = save_dir
-            # self.statusBar().showMessage(
-                # "%s started. Annotation will be saved to %s"
-                # % (__appname__, self.default_save_dir)
-            # )
-            # self.statusBar().show()
+        # self.default_save_dir = save_dir
+        # self.statusBar().showMessage(
+        # "%s started. Annotation will be saved to %s"
+        # % (__appname__, self.default_save_dir)
+        # )
+        # self.statusBar().show()
 
         self.restoreState(settings.get(SETTING_WIN_STATE, QByteArray()))
         Shape.line_color = self.line_color = QColor(
@@ -1110,16 +1124,22 @@ class MainWindow(QMainWindow, WindowMixin):
             )
 
         shapes = [format_shape(shape) for shape in self.canvas.shapes]
+        good_PA = self.good_PA.isChecked()
+        good_US = self.good_US.isChecked()
         # Can add different annotation formats here
         try:
             assert self.label_file_format == LabelFileFormat.ARPAM
-            self.label_file.save_arpam_format(shapes, self.file_path, self.image_data)
+            self.label_file.save_arpam_format(
+                shapes, self.file_path, self.image_data, good_PA, good_US
+            )
             print(
                 "Image:{0} -> Annotation:{1}".format(
                     self.file_path, self.label_file.arpam_img_set.roi
                 )
             )
-            self.statusBar().showMessage("Saved to  %s" % self.label_file.arpam_img_set.roi)
+            self.statusBar().showMessage(
+                "Saved to  %s" % self.label_file.arpam_img_set.roi
+            )
             self.statusBar().show()
             return True
         except LabelFileError as e:
@@ -1341,6 +1361,9 @@ class MainWindow(QMainWindow, WindowMixin):
 
                     img_set = self.label_file.arpam_img_set
                     self.arpam_img_type = img_set.init_type
+
+                    self.good_PA.setChecked(self.label_file.arpam_roi_file.good_PA)
+                    self.good_US.setChecked(self.label_file.arpam_roi_file.good_US)
 
                     # update img meta display
                     img_meta = self.label_file.arpam_img_meta
@@ -1787,21 +1810,21 @@ class MainWindow(QMainWindow, WindowMixin):
 
     def save_file(self, _value=False):
         # if self.default_save_dir is not None and len(self.default_save_dir):
-            # if self.file_path:
-                # image_file_name = os.path.basename(self.file_path)
-                # saved_file_name = os.path.splitext(image_file_name)[0]
-                # saved_path = os.path.join(self.default_save_dir, saved_file_name)
-                # self._save_file(saved_path)
+        # if self.file_path:
+        # image_file_name = os.path.basename(self.file_path)
+        # saved_file_name = os.path.splitext(image_file_name)[0]
+        # saved_path = os.path.join(self.default_save_dir, saved_file_name)
+        # self._save_file(saved_path)
         # else:
-            # image_file_dir = os.path.dirname(self.file_path)
-            # image_file_name = os.path.basename(self.file_path)
-            # saved_file_name = os.path.splitext(image_file_name)[0]
-            # saved_path = os.path.join(image_file_dir, saved_file_name)
-            # self._save_file(
-                # saved_path
-                # if self.label_file
-                # else self.save_file_dialog(remove_ext=False)
-            # )
+        # image_file_dir = os.path.dirname(self.file_path)
+        # image_file_name = os.path.basename(self.file_path)
+        # saved_file_name = os.path.splitext(image_file_name)[0]
+        # saved_path = os.path.join(image_file_dir, saved_file_name)
+        # self._save_file(
+        # saved_path
+        # if self.label_file
+        # else self.save_file_dialog(remove_ext=False)
+        # )
         self._save_file()
 
     def save_file_as(self, _value=False):
@@ -1830,9 +1853,9 @@ class MainWindow(QMainWindow, WindowMixin):
 
     def _save_file(self):
         # if annotation_file_path and self.save_labels(annotation_file_path):
-            # self.set_clean()
-            # self.statusBar().showMessage("Saved to  %s" % annotation_file_path)
-            # self.statusBar().show()
+        # self.set_clean()
+        # self.statusBar().showMessage("Saved to  %s" % annotation_file_path)
+        # self.statusBar().show()
         self.save_labels()
         self.set_clean()
 

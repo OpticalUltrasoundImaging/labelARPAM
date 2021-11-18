@@ -63,7 +63,7 @@ class LabelFile(object):
         if meta_path.exists():
             self.arpam_img_meta = ImgMeta.from_path(self.arpam_roi_file.img_set.meta)
 
-    def save_arpam_format(self, shapes, image_path, image_data):
+    def save_arpam_format(self, shapes, image_path, image_data, good_PA, good_US):
         if isinstance(image_data, QImage):
             image = image_data
         else:
@@ -77,13 +77,13 @@ class LabelFile(object):
             points = shape["points"]
             x = [p[0] for p in points]
             y = [p[1] for p in points]
-            print(points)
-            print(
-                min(x) / w,
-                max(x) / w,                
-                min(y) / h,
-                max(y) / h,
-            )
+            # print(points)
+            # print(
+            # min(x) / w,
+            # max(x) / w,
+            # min(y) / h,
+            # max(y) / h,
+            # )
             self.arpam_roi_file.add_bbox(
                 label=shape["label"],
                 xmin=min(x) / w,
@@ -91,6 +91,9 @@ class LabelFile(object):
                 ymin=min(y) / h,
                 ymax=max(y) / h,
             )
+
+        self.arpam_roi_file.good_PA = good_PA
+        self.arpam_roi_file.good_US = good_US
 
         self.arpam_roi_file.save()
         self._load_arpam_roi_file()
