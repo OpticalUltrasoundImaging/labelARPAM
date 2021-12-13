@@ -40,6 +40,7 @@ python labelImg.py
 * click "Show US" or type `u` to view the US image.
 * click "Show Sum" or type `s` to view the Sum image.
 * Click "Show Debug" or type `v` to view the Debug image.
+* Note: these movements will try to autosave the label file.
 
 **Navigate between images**
 * Click "Next Image" or type `d` to move to the next image set
@@ -51,5 +52,6 @@ python labelImg.py
 * Click "Edit RectBox" or type `e` to enter edit mode. Resize boxes or change box labels.
 * `ctrl-d` to duplicate the selected box.
 * `ctrl-v` to copy the bboxes from the previous image to the current image.
+* Click "Save" or `ctrl-s` to save the labels to file.
 
 In the top right corner, check "Good PA data" and/or "Good US data" to mark these images as good/usable.
