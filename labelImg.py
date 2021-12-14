@@ -129,8 +129,8 @@ class MainWindow(QMainWindow, WindowMixin):
         use_default_label_qhbox_layout = QHBoxLayout()
         use_default_label_qhbox_layout.addWidget(self.good_PA)
         use_default_label_qhbox_layout.addWidget(self.good_US)
-        use_default_label_qhbox_layout.addWidget(self.use_default_label_checkbox)
-        use_default_label_qhbox_layout.addWidget(self.default_label_text_line)
+        # use_default_label_qhbox_layout.addWidget(self.use_default_label_checkbox)
+        # use_default_label_qhbox_layout.addWidget(self.default_label_text_line)
         use_default_label_container = QWidget()
         use_default_label_container.setLayout(use_default_label_qhbox_layout)
 
@@ -673,7 +673,7 @@ class MainWindow(QMainWindow, WindowMixin):
                 open_PA_img,
                 open_US_img,
                 open_SUM_img,
-                open_DEBUG_img,
+                # open_DEBUG_img,
                 # open_annotation,
                 copy_prev_bounding,
                 self.menus.recentFiles,
@@ -746,7 +746,7 @@ class MainWindow(QMainWindow, WindowMixin):
             open_PA_img,
             open_US_img,
             open_SUM_img,
-            open_DEBUG_img,
+            # open_DEBUG_img,
             open_next_image,
             open_prev_image,
             save,
