@@ -1,2 +1,4 @@
 cancer
 tumor bed
+bubble
+artifact

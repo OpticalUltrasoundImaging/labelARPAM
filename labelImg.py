@@ -746,7 +746,7 @@ class MainWindow(QMainWindow, WindowMixin):
             open_PA_img,
             open_US_img,
             open_SUM_img,
-            # open_DEBUG_img,
+            open_DEBUG_img,
             open_next_image,
             open_prev_image,
             save,
