@@ -1369,16 +1369,14 @@ class MainWindow(QMainWindow, WindowMixin):
                     img_meta = self.label_file.arpam_img_meta
                     if img_meta:
                         self.img_meta_label.setText(
-                            "".join(
-                                (
-                                    f"{self.label_file.arpam_roi_file.fid}\n",
-                                    f"PA dB: {img_meta.dB:.3f}\n",
-                                    f"mean ratio: {img_meta.mean_ratio:.3f}\n",
-                                    f"balloon mean: {img_meta.bal_mean:.3f}\n",
-                                    f"balloon std: {img_meta.bal_std:.3f}\n",
-                                    f"tissue mean: {img_meta.under_mean:.3f}\n",
-                                    f"tissue std: {img_meta.under_std:.3f}\n",
-                                )
+                            (
+                                f"FID: {self.label_file.arpam_roi_file.fid}\n"
+                                f"PA dB: {img_meta.dB:.3f}\n"
+                                f"mean ratio: {img_meta.mean_ratio:.3f}\n"
+                                f"balloon mean: {img_meta.bal_mean:.3f}\n"
+                                f"balloon std: {img_meta.bal_std:.3f}\n"
+                                f"tissue mean: {img_meta.under_mean:.3f}\n"
+                                f"tissue std: {img_meta.under_std:.3f}\n"
                             )
                         )
                     else:
@@ -1742,10 +1740,10 @@ class MainWindow(QMainWindow, WindowMixin):
             and self.label_file.arpam_roi_file
         ):
             try:
-                img_path = str(
-                    self.label_file.arpam_roi_file.img_set.to_type(coreg_type)
-                )
-            except ValueError as e:
+                p =self.label_file.arpam_roi_file.img_set.to_type(coreg_type)
+                assert p.exists()
+                img_path = str(p)
+            except Exception as e:
                 self.status(str(e))
                 print(e)
                 img_path = str(self.label_file.arpam_roi_file.img_set.Sum)
