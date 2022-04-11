@@ -52,6 +52,13 @@ class WindowMixin(object):
         self.addToolBar(Qt.LeftToolBarArea, toolbar)
         return toolbar
 
+    def error_dialog(self, msg: str):
+        "Display `msg` in a popup error dialog"
+        if not hasattr(self, "_err_dialog"):
+            self._err_dialog = QErrorMessage()
+            self._err_dialog.setWindowTitle(f"{__appname__} error")
+
+        self._err_dialog.showMessage(msg)
 
 class MainWindow(QMainWindow, WindowMixin):
     FIT_WINDOW, FIT_WIDTH, MANUAL_ZOOM = list(range(3))
@@ -311,12 +318,19 @@ class MainWindow(QMainWindow, WindowMixin):
             "open PA img",
             "Switch to PA image (p)",
         )
-        open_SUM_img = action(
+        open_Sum_img = action(
             "Show Sum (s)",
             partial(self.action_open_coreg_img, CoImageType.SUM),
             "s",
             "open SUM img",
             "Swich to Sum image (s)",
+        )
+        open_SumPolar_img = action(
+            "Show Sum Polar (c)",
+            partial(self.action_open_coreg_img, CoImageType.SUM_POLAR),
+            "c",
+            "open Sum Polar img",
+            "Swich to Sum Polar image (s)",
         )
         open_DEBUG_img = action(
             "Show Debug (v)",
@@ -672,7 +686,8 @@ class MainWindow(QMainWindow, WindowMixin):
                 open_dir,
                 open_PA_img,
                 open_US_img,
-                open_SUM_img,
+                open_Sum_img,
+                open_SumPolar_img,
                 # open_DEBUG_img,
                 # open_annotation,
                 copy_prev_bounding,
@@ -745,7 +760,7 @@ class MainWindow(QMainWindow, WindowMixin):
             open_dir,
             open_PA_img,
             open_US_img,
-            open_SUM_img,
+            open_Sum_img,
             open_DEBUG_img,
             open_next_image,
             open_prev_image,
@@ -1381,8 +1396,9 @@ class MainWindow(QMainWindow, WindowMixin):
                         )
                     else:
                         self.img_meta_label.setText(
-                            f"Error: Metadata file not found:\n{self.label_file.arpam_roi_file.img_set.meta}"
+                            f"Error: Metadata file not found:\n{img_set.meta}"
                         )
+
 
                 self.canvas.verified = False
 
@@ -1409,7 +1425,8 @@ class MainWindow(QMainWindow, WindowMixin):
             self.paint_canvas()
             self.add_recent_file(self.file_path)
             self.toggle_actions(True)
-            self.show_bounding_box_from_annotation_file(file_path)
+            # self.show_bounding_box_from_annotation_file(file_path)
+            self.load_arpam_labels()
 
             counter = self.counter_str()
             self.setWindowTitle(__appname__ + " " + file_path + " " + counter)
@@ -1485,7 +1502,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
     def show_bounding_box_from_annotation_file(self, file_path):
         if self.label_file_format == LabelFileFormat.ARPAM:
-            self.load_arpam_by_img_path(file_path)
+            self.load_arpam_labels(file_path)
 
     def resizeEvent(self, event):
         if (
@@ -1731,8 +1748,10 @@ class MainWindow(QMainWindow, WindowMixin):
                 print(e)
                 self.status(str(e))
 
-    def action_open_coreg_img(self, coreg_type: CoImageType, _value=False):
+    def action_open_coreg_img(self, coreg_type: CoImageType):
         # need to save current shapes before opening coreg image
+        if self.image.isNull():
+            return
         self.save_file()
         if (
             self.arpam_img_type != coreg_type
@@ -1740,12 +1759,13 @@ class MainWindow(QMainWindow, WindowMixin):
             and self.label_file.arpam_roi_file
         ):
             try:
-                p =self.label_file.arpam_roi_file.img_set.to_type(coreg_type)
+                p = self.label_file.arpam_roi_file.img_set.to_type(coreg_type)
                 assert p.exists()
                 img_path = str(p)
             except Exception as e:
                 self.status(str(e))
                 print(e)
+                self.error_dialog(f"Failed to open path {p}, Exception {e}")
                 img_path = str(self.label_file.arpam_roi_file.img_set.Sum)
 
             try:
@@ -1757,6 +1777,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
             self.arpam_img_type = coreg_type
             self.load_coregistered_file(img_path)
+            print(f"opened {coreg_type.name}")
 
     def open_next_image(self, _value=False):
         # Proceeding prev image without dialog if having any label
@@ -1963,16 +1984,17 @@ class MainWindow(QMainWindow, WindowMixin):
                     else:
                         self.label_hist.append(line)
 
-    def load_arpam_by_img_path(self, img_path):
+    def load_arpam_labels(self):
         # TODO
-        self.arpam_roi_file = arpam_roi.ROI_File.from_img_path(img_path)
+        # self.arpam_roi_file = arpam_roi.ROI_File.from_img_path(img_path)
         shapes = []
+        roi_file = self.label_file.arpam_roi_file
 
-        for bbox in self.arpam_roi_file.bboxes:
-            x_max = round(bbox.xmax * self.arpam_roi_file.size.w)
-            x_min = round(bbox.xmin * self.arpam_roi_file.size.w)
-            y_max = round(bbox.ymax * self.arpam_roi_file.size.h)
-            y_min = round(bbox.ymin * self.arpam_roi_file.size.h)
+        for bbox in roi_file.bboxes:
+            x_max = round(bbox.xmax * roi_file.size.w)
+            x_min = round(bbox.xmin * roi_file.size.w)
+            y_max = round(bbox.ymax * roi_file.size.h)
+            y_min = round(bbox.ymin * roi_file.size.h)
 
             points = [(x_min, y_min), (x_max, y_min), (x_max, y_max), (x_min, y_max)]
 
